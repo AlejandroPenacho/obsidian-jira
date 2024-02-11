@@ -1,15 +1,36 @@
 use std::fs::read_dir;
 use std::path::{Path, PathBuf};
 
+use std::collections::HashMap;
 use std::fs::read_to_string;
 
+use crate::commons::{Date, Priority};
+
+use serde;
+use serde::Deserialize;
 use serde_yaml;
 
 #[derive(Debug)]
 pub struct ObsidianFile {
     path: PathBuf,
     content: String,
-    properties: Option<serde_yaml::Value>,
+    properties: Option<Properties>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Properties {
+    #[serde(flatten)]
+    jira: JiraProperties,
+    #[serde(flatten)]
+    other: HashMap<String, serde_yaml::Value>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct JiraProperties {
+    // #[serde(deserialize_with = "crate::commons::get_priority_from_number")]
+    priority: Priority,
+    #[serde(default)]
+    due_date: Option<Date>,
 }
 
 fn get_obsidian_file(path: PathBuf) -> ObsidianFile {
@@ -17,7 +38,7 @@ fn get_obsidian_file(path: PathBuf) -> ObsidianFile {
     let has_properties = full_content.starts_with("---");
 
     let content: String;
-    let properties: Option<serde_yaml::Value>;
+    let properties: Option<Properties>;
 
     if has_properties {
         let property_end = full_content[3..].find("---").unwrap() + 3;

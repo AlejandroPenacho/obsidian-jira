@@ -1,3 +1,4 @@
+mod commons;
 mod jira;
 mod obsidian;
 
