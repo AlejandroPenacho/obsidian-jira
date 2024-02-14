@@ -3,6 +3,13 @@ mod jira;
 mod obsidian;
 
 fn main() {
+    let output = obsidian::read_day_planner("test_vault/2024-02-14.md");
+    for i in output {
+        println!("{:?}", i);
+    }
+}
+
+fn test_get_notes() {
     println!("Hello, hello");
 
     let notes = obsidian::get_all_notes("test_vault");

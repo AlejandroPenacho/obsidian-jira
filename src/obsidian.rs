@@ -6,9 +6,13 @@ use std::fs::read_to_string;
 
 use crate::commons::{Date, Priority};
 
+use time::{Duration, Time};
+
+use regex;
 use serde;
 use serde::Deserialize;
 use serde_yaml;
+use time::macros::format_description;
 
 #[derive(Debug)]
 pub struct ObsidianFile {
@@ -41,9 +45,9 @@ fn get_obsidian_file(path: PathBuf) -> ObsidianFile {
     let properties: Option<Properties>;
 
     if has_properties {
-        let property_end = full_content[3..].find("---").unwrap() + 3;
-        properties = Some(serde_yaml::from_str(&full_content[3..property_end]).unwrap());
-        content = full_content[(property_end + 4)..].to_owned();
+        let end_of_properties = full_content[3..].find("---").unwrap() + 3;
+        properties = Some(serde_yaml::from_str(&full_content[3..end_of_properties]).unwrap());
+        content = full_content[(end_of_properties + 4)..].to_owned();
     } else {
         properties = None;
         content = full_content.to_owned();
@@ -74,4 +78,64 @@ pub fn get_all_notes<P: AsRef<Path>>(vault_path: P) -> Vec<ObsidianFile> {
     }
 
     return all_notes;
+}
+
+#[derive(Debug)]
+pub struct PlannedTask {
+    start: Time,
+    end: Time,
+    length: Duration,
+    name: String,
+    linked: bool,
+    completed: bool,
+}
+
+pub fn read_day_planner<P: AsRef<Path>>(file: P) -> Vec<PlannedTask> {
+    let time_format = format_description!("[hour]:[minute]");
+    let mut output = Vec::new();
+    let text = read_to_string(file).unwrap();
+    /*
+        Okay, so here comes the explanation:
+        ~ - Matches the dash at the beginning of the task
+        ~ \[(.)\]        Matches one character surrounded by [], so [ ] and [X] are valid
+                         The inside is the capture group 1
+        ~ \s+            Matches as much whitespace as needed
+        ~ (\d+:\d\d)     Matches a time as capture group 2, like 9:30 or 18:15
+        ~ \s*-\s*        A dash surrounded by arbitrary whitespace
+        ~ (\d+:\d\d)     Again, matches a time, this time for capture group 3
+        ~ \s*            As much whitespace as needed
+        ~ (.*)           One last match of anything
+    */
+    let re = regex::Regex::new(r"- \[(.)\]\s+(\d+:\d\d)\s*-\s*(\d+:\d\d)\s*(.*)").unwrap();
+    for line in text.lines() {
+        let Some(capture) = re.captures(line) else {
+            continue;
+        };
+        println!("{:?}", capture);
+
+        let completed = capture.get(1).unwrap().as_str() == " ";
+        let start = Time::parse(capture.get(2).unwrap().as_str(), time_format).unwrap();
+        let end = Time::parse(capture.get(3).unwrap().as_str(), time_format).unwrap();
+        let length = end - start;
+        let mut name = capture.get(4).unwrap().as_str().to_owned();
+        // This is a mess, do it right later
+        let linked: bool;
+        if &name[..2] == "[[" {
+            name = name[2..name.len() - 2].to_owned();
+            linked = true;
+        } else {
+            linked = false;
+        }
+
+        output.push(PlannedTask {
+            start,
+            end,
+            length,
+            name,
+            linked,
+            completed,
+        })
+    }
+
+    output
 }
