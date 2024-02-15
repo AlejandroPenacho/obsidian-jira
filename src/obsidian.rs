@@ -31,7 +31,7 @@ pub struct Properties {
 
 #[derive(Deserialize, Debug)]
 pub struct JiraProperties {
-    // #[serde(deserialize_with = "crate::commons::get_priority_from_number")]
+    #[serde(deserialize_with = "Priority::deserialize_from_number")]
     priority: Priority,
     #[serde(default)]
     due_date: Option<Date>,

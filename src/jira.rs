@@ -3,7 +3,7 @@ use serde::Deserialize;
 // use serde_json::Value;
 use std::fs::read_to_string;
 
-use crate::commons::{Date, DateTime};
+use crate::commons::{Date, DateTime, Priority};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -52,8 +52,9 @@ pub struct JiraIssueFields {
     updated: DateTime,
     #[serde(rename = "duedate")]
     due_date: Option<Date>,
+    #[serde(deserialize_with = "Priority::deserialize_from_jira_field")]
+    priority: Priority,
     /*
-    priority: IssuePriority,
     project: Project,
     status: Status
     */
@@ -70,6 +71,10 @@ impl JiraIssueFields {
 
     pub fn get_reporter(&self) -> Option<&User> {
         self.reporter.as_ref()
+    }
+
+    pub fn get_priority(&self) -> &Priority {
+        &self.priority
     }
 }
 
@@ -107,7 +112,10 @@ pub fn get_issues(max_results: u32) -> JiraResponse {
     let client = reqwest::blocking::Client::new();
     let auth = get_jira_auth();
     client
-        .get("https://barreau.atlassian.net/rest/api/2/search?maxResults=10")
+        .get(format!(
+            "https://barreau.atlassian.net/rest/api/2/search?maxResults={}",
+            max_results,
+        ))
         .basic_auth(auth.0, Some(auth.1))
         .send()
         .unwrap()

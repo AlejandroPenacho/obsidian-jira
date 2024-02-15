@@ -3,6 +3,10 @@ mod jira;
 mod obsidian;
 
 fn main() {
+    test_get_notes();
+}
+
+fn test_day_planner() {
     let output = obsidian::read_day_planner("test_vault/2024-02-14.md");
     for i in output {
         println!("{:?}", i);
@@ -20,7 +24,7 @@ fn test_get_notes() {
 }
 
 fn test_jira() {
-    let response = jira::get_issues(10);
+    let response = jira::get_issues(30);
     // let all_issues = response.get("issues").unwrap().as_array().unwrap();
 
     for issue in response.get_issues() {
@@ -30,8 +34,12 @@ fn test_jira() {
             .get_fields()
             .get_reporter()
             .map(|x| x.get_display_name());
+        let priority = issue.get_fields().get_priority();
 
-        println!("{:?} => {:?}\n\t{:?}\n", user, created, summary);
+        println!(
+            "{:?} => {:?} - {:?}\n\t{:?}\n",
+            user, created, priority, summary
+        );
     }
 
     /*

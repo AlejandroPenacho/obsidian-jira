@@ -26,8 +26,7 @@ impl From<&str> for Date {
     }
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(from = "u8")]
+#[derive(Debug)]
 pub enum Priority {
     VeryLow,
     Low,
@@ -35,17 +34,47 @@ pub enum Priority {
     High,
     VeryHigh,
 }
-impl From<u8> for Priority {
-    fn from(input: u8) -> Priority {
+
+impl Priority {
+    pub fn deserialize_from_number<'de, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let input = serde_json::value::Number::deserialize(deserializer)
+            .unwrap()
+            .as_u64()
+            .unwrap();
         use Priority::*;
-        match input {
-            1 => VeryLow,
-            2 => Low,
+        Ok(match input {
+            1 => VeryHigh,
+            2 => High,
             3 => Medium,
-            4 => High,
-            5 => VeryHigh,
+            4 => Low,
+            5 => VeryLow,
             _ => panic!(),
-        }
+        })
+    }
+
+    pub fn deserialize_from_jira_field<'de, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let input: serde_json::Map<std::string::String, serde_json::Value> =
+            serde_json::value::Map::deserialize(deserializer).unwrap();
+
+        let value: &serde_json::Value = input.get("id").unwrap();
+        let stringed = value.as_str().unwrap();
+        let number: u8 = stringed.parse().unwrap();
+
+        use Priority::*;
+        Ok(match number {
+            1 => VeryHigh,
+            2 => High,
+            3 => Medium,
+            4 => Low,
+            5 => VeryLow,
+            _ => panic!(),
+        })
     }
 }
 
