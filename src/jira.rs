@@ -3,7 +3,7 @@ use serde::Deserialize;
 // use serde_json::Value;
 use std::fs::read_to_string;
 
-use crate::commons::{Date, DateTime, Priority};
+use crate::commons::{Date, DateTime, IssueType, Priority, Status};
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -44,6 +44,7 @@ pub struct JiraIssueFields {
     #[serde(rename = "customfield_10035")]
     expected_time: Option<f32>,
     #[serde(rename = "issuetype")]
+    #[serde(deserialize_with = "IssueType::deserialize_from_jira")]
     issue_type: IssueType,
     creator: User,
     reporter: Option<User>,
@@ -56,6 +57,8 @@ pub struct JiraIssueFields {
     priority: Priority,
     #[serde(flatten)]
     time_tracking: TimeTracking,
+    #[serde(deserialize_with = "Status::deserialize_from_jira")]
+    status: Status,
 }
 /*
 project: Project,
@@ -92,14 +95,6 @@ impl User {
     pub fn get_display_name(&self) -> &str {
         &self.display_name
     }
-}
-
-#[derive(Deserialize, Debug)]
-pub struct IssueType {
-    id: String,
-    name: String,
-    #[serde(rename = "self")]
-    url: String,
 }
 
 #[derive(Debug, Deserialize)]

@@ -40,10 +40,13 @@ impl Priority {
     where
         D: Deserializer<'de>,
     {
+        let input: u8 = Deserialize::deserialize(deserializer).unwrap();
+        /*
         let input = serde_json::value::Number::deserialize(deserializer)
             .unwrap()
             .as_u64()
             .unwrap();
+        */
         use Priority::*;
         Ok(match input {
             1 => VeryHigh,
@@ -59,12 +62,20 @@ impl Priority {
     where
         D: Deserializer<'de>,
     {
+        #[derive(Deserialize)]
+        struct Intermediate {
+            id: String,
+        }
+        let input: Intermediate = Deserialize::deserialize(deserializer).unwrap();
+        let number: u8 = input.id.parse().unwrap();
+        /*
         let input: serde_json::Map<std::string::String, serde_json::Value> =
             serde_json::value::Map::deserialize(deserializer).unwrap();
 
         let value: &serde_json::Value = input.get("id").unwrap();
         let stringed = value.as_str().unwrap();
         let number: u8 = stringed.parse().unwrap();
+        */
 
         use Priority::*;
         Ok(match number {
@@ -78,14 +89,60 @@ impl Priority {
     }
 }
 
-/*
-Eventually figure this out
-
-pub fn get_priority_from_number<'de, D>(deserializer: D) -> Result<Priority, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let output = deserializer.deserialize_u8(visitor)?;
-    return Ok(Priority::Medium);
+#[derive(Debug)]
+pub enum Status {
+    ToDo,
+    InProgress,
+    Blocked,
+    Done,
 }
-*/
+
+impl Status {
+    pub fn deserialize_from_jira<'de, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Intermediate {
+            name: String,
+        }
+        let intermediate: Intermediate = Deserialize::deserialize(deserializer).unwrap();
+        use Status::*;
+        Ok(match intermediate.name.as_str() {
+            "To Do" => ToDo,
+            "In Progress" => InProgress,
+            "Blocked" => Blocked,
+            "Done" => Done,
+            _ => panic!(),
+        })
+    }
+}
+
+#[derive(Debug)]
+pub enum IssueType {
+    Story,
+    Task,
+    SubTask,
+    Epic,
+}
+
+impl IssueType {
+    pub fn deserialize_from_jira<'de, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Intermediate {
+            name: String,
+        }
+        let intermediate: Intermediate = Deserialize::deserialize(deserializer).unwrap();
+        use IssueType::*;
+        Ok(match intermediate.name.as_str() {
+            "Story" => Story,
+            "Task" => Task,
+            "Sub-task" => SubTask,
+            "Epic" => Epic,
+            _ => panic!(),
+        })
+    }
+}
