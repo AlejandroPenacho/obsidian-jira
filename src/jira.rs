@@ -5,7 +5,7 @@ use std::fs::read_to_string;
 
 use crate::commons::{Date, DateTime, Priority};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct JiraResponse {
     expand: String,
@@ -21,7 +21,7 @@ impl JiraResponse {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct JiraIssue {
     expand: String,
     fields: JiraIssueFields,
@@ -37,10 +37,10 @@ impl JiraIssue {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct JiraIssueFields {
     summary: String,
-    description: Option<String>,
+    // description: Option<String>,
     #[serde(rename = "customfield_10035")]
     expected_time: Option<f32>,
     #[serde(rename = "issuetype")]
@@ -54,12 +54,13 @@ pub struct JiraIssueFields {
     due_date: Option<Date>,
     #[serde(deserialize_with = "Priority::deserialize_from_jira_field")]
     priority: Priority,
-    /*
-    project: Project,
-    status: Status
-    */
+    #[serde(flatten)]
+    time_tracking: TimeTracking,
 }
-
+/*
+project: Project,
+status: Status
+*/
 impl JiraIssueFields {
     pub fn get_summary(&self) -> &str {
         &self.summary
@@ -78,7 +79,7 @@ impl JiraIssueFields {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
     account_id: String,
@@ -93,12 +94,22 @@ impl User {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct IssueType {
     id: String,
     name: String,
     #[serde(rename = "self")]
     url: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TimeTracking {
+    #[serde(rename = "timeestimate")]
+    time_estimate: Option<u32>,
+    #[serde(rename = "timeoriginalestimate")]
+    time_original_estimate: Option<u32>,
+    #[serde(rename = "timespent")]
+    time_spent: Option<u32>,
 }
 
 fn get_jira_auth() -> (String, String) {
@@ -110,13 +121,15 @@ fn get_jira_auth() -> (String, String) {
 
 pub fn get_issues(max_results: u32) -> JiraResponse {
     let client = reqwest::blocking::Client::new();
+    let query = [
+        ("maxResults", max_results.to_string()),
+        ("jql", String::from("assignee=635bd5b8fe5ff375235a8a6c")),
+    ];
     let auth = get_jira_auth();
     client
-        .get(format!(
-            "https://barreau.atlassian.net/rest/api/2/search?maxResults={}",
-            max_results,
-        ))
+        .get("https://barreau.atlassian.net/rest/api/3/search")
         .basic_auth(auth.0, Some(auth.1))
+        .query(&query)
         .send()
         .unwrap()
         .json::<JiraResponse>()
