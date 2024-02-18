@@ -10,8 +10,13 @@ impl From<&str> for DateTime {
         let format = time::macros::format_description!(
             "[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond][offset_hour][offset_minute]"
         );
-        let date = time::OffsetDateTime::parse(input, format).unwrap();
-        return DateTime(date);
+        if input.chars().last().unwrap() == 'Z' {
+            let mut new_input = input[..input.len() - 1].to_owned();
+            new_input.push_str("+0000");
+            return DateTime(time::OffsetDateTime::parse(&new_input, format).unwrap());
+        } else {
+            return DateTime(time::OffsetDateTime::parse(input, format).unwrap());
+        }
     }
 }
 

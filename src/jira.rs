@@ -1,5 +1,5 @@
 use reqwest;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 // use serde_json::Value;
 use std::fs::read_to_string;
 
@@ -42,7 +42,7 @@ pub struct JiraIssueFields {
     summary: String,
     // description: Option<String>,
     #[serde(rename = "customfield_10035")]
-    expected_time: Option<f32>,
+    story_points: Option<f32>,
     #[serde(rename = "issuetype")]
     #[serde(deserialize_with = "IssueType::deserialize_from_jira")]
     issue_type: IssueType,
@@ -59,6 +59,9 @@ pub struct JiraIssueFields {
     time_tracking: TimeTracking,
     #[serde(deserialize_with = "Status::deserialize_from_jira")]
     status: Status,
+    #[serde(rename = "customfield_10020")]
+    #[serde(deserialize_with = "JiraBoard::deserialize_vec_from_jira")]
+    boards: Vec<JiraBoard>,
 }
 /*
 project: Project,
@@ -96,6 +99,32 @@ impl User {
         &self.display_name
     }
 }
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct JiraBoard {
+    id: u8,
+    board_id: u8,
+    start_date: DateTime,
+    end_date: DateTime,
+    complete_data: Option<DateTime>,
+    name: String,
+    state: String,
+    goal: String,
+}
+
+impl JiraBoard {
+    fn deserialize_vec_from_jira<'de, D>(deserializer: D) -> Result<Vec<JiraBoard>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let output: Vec<JiraBoard> =
+            Deserialize::deserialize(deserializer).unwrap_or_else(|_| Vec::new());
+        Ok(output)
+    }
+}
+
+// state is either closed, future
 
 #[derive(Debug, Deserialize)]
 pub struct TimeTracking {
