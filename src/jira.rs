@@ -3,6 +3,8 @@ use serde::{Deserialize, Deserializer};
 // use serde_json::Value;
 use std::fs::read_to_string;
 
+use std::io::Write;
+
 use crate::commons::{Date, DateTime, IssueType, Priority, Status};
 
 #[derive(Deserialize, Debug)]
@@ -26,7 +28,7 @@ pub struct JiraIssue {
     expand: String,
     fields: JiraIssueFields,
     id: String,
-    key: String,
+    key: JiraKey,
     #[serde(rename = "self")]
     url: String,
 }
@@ -62,11 +64,12 @@ pub struct JiraIssueFields {
     #[serde(rename = "customfield_10020")]
     #[serde(deserialize_with = "JiraBoard::deserialize_vec_from_jira")]
     boards: Vec<JiraBoard>,
+    #[serde(deserialize_with = "JiraKey::deserialize_parent")]
+    #[serde(rename = "parent")]
+    #[serde(default)]
+    parent_key: Option<JiraKey>,
 }
-/*
-project: Project,
-status: Status
-*/
+
 impl JiraIssueFields {
     pub fn get_summary(&self) -> &str {
         &self.summary
@@ -134,6 +137,23 @@ pub struct TimeTracking {
     time_original_estimate: Option<u32>,
     #[serde(rename = "timespent")]
     time_spent: Option<u32>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct JiraKey(String);
+
+impl JiraKey {
+    fn deserialize_parent<'de, D>(deserializer: D) -> Result<Option<JiraKey>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Parent {
+            key: String,
+        }
+        let mid: Parent = Deserialize::deserialize(deserializer)?;
+        Ok(Some(JiraKey(mid.key)))
+    }
 }
 
 fn get_jira_auth() -> (String, String) {
