@@ -1,16 +1,18 @@
 use std::fs::read_dir;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use std::collections::HashMap;
 use std::fs::read_to_string;
 
-use crate::commons::{Date, Priority};
+use crate::commons::{Date, Priority, Status, TimeEstimate};
+use crate::jira::TimeTrackingJira;
 
 use time::{Duration, Time};
 
 use regex;
 use serde;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_yaml;
 use time::macros::format_description;
 
@@ -21,7 +23,7 @@ pub struct ObsidianFile {
     properties: Option<Properties>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Properties {
     #[serde(flatten)]
     jira: JiraProperties,
@@ -29,12 +31,94 @@ pub struct Properties {
     other: HashMap<String, serde_yaml::Value>,
 }
 
-#[derive(Deserialize, Debug)]
+impl Properties {
+    pub fn new(jira_props: JiraProperties) -> Self {
+        Properties {
+            jira: jira_props,
+            other: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JiraProperties {
     #[serde(deserialize_with = "Priority::deserialize_from_number")]
+    #[serde(serialize_with = "Priority::serialize_to_number")]
     priority: Priority,
+    status: Status,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     due_date: Option<Date>,
+    jira_key: crate::jira::JiraKey,
+    #[serde(flatten)]
+    time_tracking: TimeTrackingObsidian,
+}
+
+impl JiraProperties {
+    pub fn from_jira_issue(issue: &crate::jira::JiraIssue) -> Self {
+        let fields = issue.get_fields();
+        JiraProperties {
+            jira_key: issue.get_key().clone(),
+            priority: *fields.get_priority(),
+            status: *fields.get_status(),
+            due_date: fields.get_due_date().cloned(),
+            time_tracking: TimeTrackingObsidian::from(fields.get_time_tracking()),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TimeTrackingObsidian {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    #[serde(rename = "time original estimation")]
+    original: Option<crate::commons::TimeEstimate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    #[serde(rename = "time spent")]
+    spent: Option<crate::commons::TimeEstimate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    #[serde(rename = "time left")]
+    left: Option<crate::commons::TimeEstimate>,
+}
+
+impl TimeTrackingObsidian {
+    pub fn new(original: Option<&str>, spent: Option<&str>, estimate_left: Option<&str>) -> Self {
+        Self {
+            original: original.map(|x| TimeEstimate::from(x)),
+            left: spent.map(|x| TimeEstimate::from(x)),
+            spent: estimate_left.map(|x| TimeEstimate::from(x)),
+        }
+    }
+}
+
+impl From<&TimeTrackingJira> for TimeTrackingObsidian {
+    fn from(input: &TimeTrackingJira) -> TimeTrackingObsidian {
+        TimeTrackingObsidian {
+            original: input.get_time_original().cloned(),
+            left: input.get_time_left().cloned(),
+            spent: input.get_time_spent().cloned(),
+        }
+    }
+}
+
+impl JiraProperties {
+    pub fn new(
+        priority: Priority,
+        due_date: Option<Date>,
+        status: Status,
+        jira_key: crate::jira::JiraKey,
+        time_tracking: TimeTrackingObsidian,
+    ) -> JiraProperties {
+        JiraProperties {
+            priority,
+            due_date,
+            status,
+            jira_key,
+            time_tracking,
+        }
+    }
 }
 
 fn get_obsidian_file(path: PathBuf) -> ObsidianFile {
@@ -58,6 +142,17 @@ fn get_obsidian_file(path: PathBuf) -> ObsidianFile {
         content,
         properties,
     };
+}
+
+pub fn create_obsidian_file<P: AsRef<Path>>(path: P, properties: Option<Properties>) {
+    let mut file = std::fs::File::create(path).unwrap();
+    let mut content = String::new();
+    if let Some(properties) = properties {
+        content.push_str("---\n");
+        content.push_str(&format!("{}", serde_yaml::to_string(&properties).unwrap()));
+        content.push_str("\n---\n")
+    }
+    file.write(content.as_bytes()).unwrap();
 }
 
 pub fn get_all_notes<P: AsRef<Path>>(vault_path: P) -> Vec<ObsidianFile> {

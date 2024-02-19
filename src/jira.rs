@@ -1,11 +1,9 @@
 use reqwest;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 // use serde_json::Value;
 use std::fs::read_to_string;
 
-use std::io::Write;
-
-use crate::commons::{Date, DateTime, IssueType, Priority, Status};
+use crate::commons::{Date, DateTime, IssueType, Priority, Status, TimeEstimate};
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -37,6 +35,9 @@ impl JiraIssue {
     pub fn get_fields(&self) -> &JiraIssueFields {
         &self.fields
     }
+    pub fn get_key(&self) -> &JiraKey {
+        &self.key
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -58,7 +59,7 @@ pub struct JiraIssueFields {
     #[serde(deserialize_with = "Priority::deserialize_from_jira_field")]
     priority: Priority,
     #[serde(flatten)]
-    time_tracking: TimeTracking,
+    time_tracking: TimeTrackingJira,
     #[serde(deserialize_with = "Status::deserialize_from_jira")]
     status: Status,
     #[serde(rename = "customfield_10020")]
@@ -85,6 +86,18 @@ impl JiraIssueFields {
 
     pub fn get_priority(&self) -> &Priority {
         &self.priority
+    }
+
+    pub fn get_status(&self) -> &Status {
+        &self.status
+    }
+
+    pub fn get_due_date(&self) -> Option<&Date> {
+        self.due_date.as_ref()
+    }
+
+    pub fn get_time_tracking(&self) -> &TimeTrackingJira {
+        &self.time_tracking
     }
 }
 
@@ -129,20 +142,39 @@ impl JiraBoard {
 
 // state is either closed, future
 
-#[derive(Debug, Deserialize)]
-pub struct TimeTracking {
+#[derive(Debug, Deserialize, Clone)]
+pub struct TimeTrackingJira {
     #[serde(rename = "timeestimate")]
-    time_estimate: Option<u32>,
+    #[serde(deserialize_with = "TimeEstimate::deserialize_from_secs")]
+    left: Option<TimeEstimate>,
     #[serde(rename = "timeoriginalestimate")]
-    time_original_estimate: Option<u32>,
+    #[serde(deserialize_with = "TimeEstimate::deserialize_from_secs")]
+    original: Option<TimeEstimate>,
     #[serde(rename = "timespent")]
-    time_spent: Option<u32>,
+    #[serde(deserialize_with = "TimeEstimate::deserialize_from_secs")]
+    spent: Option<TimeEstimate>,
 }
 
-#[derive(Deserialize, Debug)]
+impl TimeTrackingJira {
+    pub fn get_time_left(&self) -> Option<&TimeEstimate> {
+        self.left.as_ref()
+    }
+    pub fn get_time_original(&self) -> Option<&TimeEstimate> {
+        self.original.as_ref()
+    }
+    pub fn get_time_spent(&self) -> Option<&TimeEstimate> {
+        self.spent.as_ref()
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct JiraKey(String);
 
 impl JiraKey {
+    pub fn new(key: &str) -> Self {
+        Self(key.to_owned())
+    }
+
     fn deserialize_parent<'de, D>(deserializer: D) -> Result<Option<JiraKey>, D::Error>
     where
         D: Deserializer<'de>,

@@ -1,7 +1,7 @@
-use serde::{self, Deserialize, Deserializer};
+use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
 use time;
 // Note to self: this should be a TryFrom, but I do not want to look up the error types
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 #[serde(from = "&str")]
 pub struct DateTime(time::OffsetDateTime);
 
@@ -20,9 +20,11 @@ impl From<&str> for DateTime {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(from = "&str")]
+#[serde(into = "String")]
 pub struct Date(time::Date);
+
 impl From<&str> for Date {
     fn from(input: &str) -> Date {
         let format = time::macros::format_description!("[year]-[month]-[day]");
@@ -31,7 +33,19 @@ impl From<&str> for Date {
     }
 }
 
-#[derive(Debug)]
+impl Date {
+    pub fn new(date: time::Date) -> Self {
+        Date(date)
+    }
+}
+
+impl Into<String> for Date {
+    fn into(self) -> String {
+        self.0.to_string()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum Priority {
     VeryLow,
     Low,
@@ -61,6 +75,20 @@ impl Priority {
             5 => VeryLow,
             _ => panic!(),
         })
+    }
+    pub fn serialize_to_number<S: Serializer>(
+        input: &Self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        use Priority::*;
+        let number = match input {
+            VeryLow => 5,
+            Low => 4,
+            Medium => 3,
+            High => 2,
+            VeryHigh => 1,
+        };
+        serializer.serialize_u8(number)
     }
 
     pub fn deserialize_from_jira_field<'de, D>(deserializer: D) -> Result<Self, D::Error>
@@ -94,9 +122,11 @@ impl Priority {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, Copy, Clone)]
 pub enum Status {
+    #[serde(rename = "To Do")]
     ToDo,
+    #[serde(rename = "In Progress")]
     InProgress,
     Blocked,
     Done,
@@ -123,7 +153,7 @@ impl Status {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum IssueType {
     Story,
     Task,
@@ -149,5 +179,55 @@ impl IssueType {
             "Epic" => Epic,
             _ => panic!(),
         })
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Copy)]
+#[serde(into = "String")]
+#[serde(from = "&str")]
+pub struct TimeEstimate {
+    hours: u8,
+    minutes: u8,
+}
+
+impl Into<String> for TimeEstimate {
+    fn into(self) -> String {
+        format!("{}:{:0>2}", self.hours, self.minutes)
+    }
+}
+impl From<&str> for TimeEstimate {
+    fn from(input: &str) -> Self {
+        let mut splitted = input.split(":");
+        let hours = splitted.next().unwrap().parse::<u8>().unwrap();
+        let minutes = match splitted.next() {
+            None => 0,
+            Some(x) => x.parse::<u8>().unwrap(),
+        };
+        Self { hours, minutes }
+    }
+}
+
+impl TimeEstimate {
+    pub fn from_secs(input: u64) -> Self {
+        let hours: u64 = input / 3600;
+        let minutes: u64 = (input - hours * 3600) / 60;
+
+        TimeEstimate {
+            hours: hours as u8,
+            minutes: minutes as u8,
+        }
+    }
+    pub fn to_secs(&self) -> u64 {
+        self.hours as u64 * 3600 + self.minutes as u64 * 60
+    }
+
+    pub fn deserialize_from_secs<'de, D>(deserializer: D) -> Result<Option<Self>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let Some(seconds) = Deserialize::deserialize(deserializer).ok() else {
+            return Ok(None);
+        };
+        Ok(Some(Self::from_secs(seconds)))
     }
 }
