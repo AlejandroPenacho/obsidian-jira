@@ -1,4 +1,5 @@
 mod commons;
+mod config;
 mod jira;
 mod obsidian;
 
@@ -7,10 +8,12 @@ use time::macros::date;
 use std::io::Write;
 
 fn main() {
-    // test_jira();
-    create_many_notes("test_vault/jira");
+    let _ = config::CONFIG.set(config::Config::new()).unwrap();
+    test_jira();
+    // create_many_notes("test_vault/jira");
     // test_create_note();
     // test_get_notes();
+    // println!("{:?}", config::CONFIG.get().unwrap());
 }
 
 fn test_day_planner() {
@@ -24,10 +27,10 @@ fn test_day_planner() {
 fn test_get_notes() {
     println!("Hello, hello");
 
-    let notes = obsidian::get_all_notes("test_vault");
+    let notes = obsidian::get_all_notes("test_vault/jira");
 
     for note in notes {
-        println!("{:?}", note);
+        println!("{:#?}", note);
     }
 }
 

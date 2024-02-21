@@ -188,23 +188,31 @@ impl JiraKey {
     }
 }
 
-fn get_jira_auth() -> (String, String) {
-    (
-        "alejpr@kth.se".to_owned(),
-        read_to_string("token.txt").unwrap(),
-    )
-}
-
 pub fn get_issues(max_results: u32) -> JiraResponse {
+    let url = format!(
+        "https://{}.atlassian.net/rest/api/3/search",
+        crate::config::CONFIG.get().unwrap().get_jira_url()
+    );
+
     let client = reqwest::blocking::Client::new();
+
     let query = [
         ("maxResults", max_results.to_string()),
-        ("jql", String::from("assignee=635bd5b8fe5ff375235a8a6c")),
+        (
+            "jql",
+            format!(
+                "assignee={}",
+                crate::config::CONFIG.get().unwrap().get_user_id(),
+            ),
+        ),
     ];
-    let auth = get_jira_auth();
+
+    let auth_mail = crate::config::CONFIG.get().unwrap().get_user_mail();
+    let auth_token = crate::config::CONFIG.get().unwrap().get_jira_token();
+
     client
-        .get("https://barreau.atlassian.net/rest/api/3/search")
-        .basic_auth(auth.0, Some(auth.1))
+        .get(url)
+        .basic_auth(auth_mail, Some(auth_token))
         .query(&query)
         .send()
         .unwrap()
