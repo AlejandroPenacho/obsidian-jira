@@ -185,40 +185,34 @@ impl IssueType {
 #[derive(Serialize, Deserialize, Clone, Debug, Copy)]
 #[serde(into = "String")]
 #[serde(from = "&str")]
-pub struct TimeEstimate {
-    hours: u8,
-    minutes: u8,
-}
+pub struct TimeEstimate(time::Duration);
 
 impl Into<String> for TimeEstimate {
     fn into(self) -> String {
-        format!("{}:{:0>2}", self.hours, self.minutes)
+        let total_minutes = self.0.whole_minutes();
+        let hours = total_minutes / 60;
+        let minutes = total_minutes - hours * 60;
+        format!("{}:{:0>2}", hours, minutes)
     }
 }
 impl From<&str> for TimeEstimate {
     fn from(input: &str) -> Self {
         let mut splitted = input.split(":");
-        let hours = splitted.next().unwrap().parse::<u8>().unwrap();
+        let hours = splitted.next().unwrap().parse::<i64>().unwrap();
         let minutes = match splitted.next() {
             None => 0,
-            Some(x) => x.parse::<u8>().unwrap(),
+            Some(x) => x.parse::<i64>().unwrap(),
         };
-        Self { hours, minutes }
+        Self(time::Duration::minutes(hours * 60 + minutes))
     }
 }
 
 impl TimeEstimate {
-    pub fn from_secs(input: u64) -> Self {
-        let hours: u64 = input / 3600;
-        let minutes: u64 = (input - hours * 3600) / 60;
-
-        TimeEstimate {
-            hours: hours as u8,
-            minutes: minutes as u8,
-        }
+    pub fn from_secs(input: i64) -> Self {
+        TimeEstimate(time::Duration::seconds(input as i64))
     }
-    pub fn to_secs(&self) -> u64 {
-        self.hours as u64 * 3600 + self.minutes as u64 * 60
+    pub fn to_secs(&self) -> i64 {
+        self.0.whole_seconds()
     }
 
     pub fn deserialize_from_secs<'de, D>(deserializer: D) -> Result<Option<Self>, D::Error>

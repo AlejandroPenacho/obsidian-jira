@@ -9,10 +9,10 @@ use std::io::Write;
 
 fn main() {
     let _ = config::CONFIG.set(config::Config::new()).unwrap();
-    test_jira();
+    // test_jira();
     // create_many_notes("test_vault/jira");
     // test_create_note();
-    // test_get_notes();
+    test_get_notes();
     // println!("{:?}", config::CONFIG.get().unwrap());
 }
 
