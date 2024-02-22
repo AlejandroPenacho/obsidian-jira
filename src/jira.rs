@@ -63,8 +63,8 @@ pub struct JiraIssueFields {
     #[serde(deserialize_with = "Status::deserialize_from_jira")]
     status: Status,
     #[serde(rename = "customfield_10020")]
-    #[serde(deserialize_with = "JiraBoard::deserialize_vec_from_jira")]
-    boards: Vec<JiraBoard>,
+    #[serde(deserialize_with = "Sprint::deserialize_sprint_vec_from_jira")]
+    sprints: Vec<Sprint>,
     #[serde(deserialize_with = "JiraKey::deserialize_parent")]
     #[serde(rename = "parent")]
     #[serde(default)]
@@ -99,6 +99,10 @@ impl JiraIssueFields {
     pub fn get_time_tracking(&self) -> &TimeTrackingJira {
         &self.time_tracking
     }
+
+    pub fn get_sprints(&self) -> &[Sprint] {
+        &self.sprints
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -116,27 +120,27 @@ impl User {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct JiraBoard {
-    id: u8,
-    board_id: u8,
-    start_date: DateTime,
-    end_date: DateTime,
-    complete_data: Option<DateTime>,
-    name: String,
-    state: String,
-    goal: String,
-}
+pub struct Sprint(String);
 
-impl JiraBoard {
-    fn deserialize_vec_from_jira<'de, D>(deserializer: D) -> Result<Vec<JiraBoard>, D::Error>
+impl Sprint {
+    pub fn new(name: String) -> Self {
+        Self(name)
+    }
+
+    fn deserialize_sprint_vec_from_jira<'de, D>(deserializer: D) -> Result<Vec<Sprint>, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let output: Vec<JiraBoard> =
+        #[derive(Deserialize)]
+        struct Intermediate {
+            name: String,
+        }
+        let output: Vec<Intermediate> =
             Deserialize::deserialize(deserializer).unwrap_or_else(|_| Vec::new());
-        Ok(output)
+
+        Ok(output.into_iter().map(|x| Sprint(x.name)).collect())
     }
 }
 

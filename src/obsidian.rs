@@ -50,6 +50,7 @@ pub struct JiraProperties {
     #[serde(skip_serializing_if = "Option::is_none")]
     due_date: Option<Date>,
     jira_key: crate::jira::JiraKey,
+    sprints: Vec<crate::jira::Sprint>,
     #[serde(flatten)]
     time_tracking: TimeTrackingObsidian,
 }
@@ -63,6 +64,7 @@ impl JiraProperties {
             status: *fields.get_status(),
             due_date: fields.get_due_date().cloned(),
             time_tracking: TimeTrackingObsidian::from(fields.get_time_tracking()),
+            sprints: fields.get_sprints().iter().cloned().collect(),
         }
     }
 }
@@ -110,6 +112,7 @@ impl JiraProperties {
         status: Status,
         jira_key: crate::jira::JiraKey,
         time_tracking: TimeTrackingObsidian,
+        sprints: Vec<crate::jira::Sprint>,
     ) -> JiraProperties {
         JiraProperties {
             priority,
@@ -117,6 +120,7 @@ impl JiraProperties {
             status,
             jira_key,
             time_tracking,
+            sprints,
         }
     }
 }

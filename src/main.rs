@@ -10,9 +10,10 @@ use std::io::Write;
 fn main() {
     let _ = config::CONFIG.set(config::Config::new()).unwrap();
     // test_jira();
-    // create_many_notes("test_vault/jira");
+    create_many_notes("test_vault/jira");
     // test_create_note();
-    test_get_notes();
+    // test_get_notes();
+    // test_sprint(20);
     // println!("{:?}", config::CONFIG.get().unwrap());
 }
 
@@ -42,9 +43,46 @@ fn test_create_note() {
         commons::Status::InProgress,
         jira::JiraKey::new("MB-1004"),
         obsidian::TimeTrackingObsidian::new(Some("8:00"), Some("3:00"), Some("9:00")),
+        vec![jira::Sprint::new("LA WEA".to_owned())],
     );
     let properties = obsidian::Properties::new(jira_props);
     obsidian::create_obsidian_file("test_vault/replicant.md", Some(properties));
+}
+
+fn test_sprint(max_results: u32) -> () {
+    let url = format!(
+        "https://{}.atlassian.net/rest/agile/1.0/board/5/sprint",
+        crate::config::CONFIG.get().unwrap().get_jira_url()
+    );
+
+    let client = reqwest::blocking::Client::new();
+
+    let query = [
+        ("maxResults", max_results.to_string()),
+        /*
+        (
+            "jql",
+            format!(
+                "assignee={}",
+                crate::config::CONFIG.get().unwrap().get_user_id(),
+            ),
+        ),
+        */
+    ];
+
+    let auth_mail = crate::config::CONFIG.get().unwrap().get_user_mail();
+    let auth_token = crate::config::CONFIG.get().unwrap().get_jira_token();
+
+    let output = client
+        .get(url)
+        .basic_auth(auth_mail, Some(auth_token))
+        .query(&query)
+        .send()
+        .unwrap()
+        .json::<serde_json::Value>()
+        .unwrap();
+
+    println!("{:#?}", output);
 }
 
 fn test_jira() {
