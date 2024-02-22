@@ -153,7 +153,7 @@ impl Status {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub enum IssueType {
     Story,
     Task,

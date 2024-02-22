@@ -1,5 +1,6 @@
 use reqwest;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::ser::SerializeSeq;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 // use serde_json::Value;
 use std::fs::read_to_string;
 
@@ -43,9 +44,10 @@ impl JiraIssue {
 #[derive(Deserialize, Debug)]
 pub struct JiraIssueFields {
     summary: String,
-    // description: Option<String>,
-    #[serde(rename = "customfield_10035")]
-    story_points: Option<f32>,
+    #[serde(deserialize_with = "deserialize_description")]
+    description: String,
+    // #[serde(rename = "customfield_10035")]
+    // story_points: Option<f32>,
     #[serde(rename = "issuetype")]
     #[serde(deserialize_with = "IssueType::deserialize_from_jira")]
     issue_type: IssueType,
@@ -65,10 +67,10 @@ pub struct JiraIssueFields {
     #[serde(rename = "customfield_10020")]
     #[serde(deserialize_with = "Sprint::deserialize_sprint_vec_from_jira")]
     sprints: Vec<Sprint>,
-    #[serde(deserialize_with = "JiraKey::deserialize_parent")]
-    #[serde(rename = "parent")]
     #[serde(default)]
-    parent_key: Option<JiraKey>,
+    parent: Option<IssueIdentifier>,
+    #[serde(rename = "subtasks")]
+    children: Vec<IssueIdentifier>,
 }
 
 impl JiraIssueFields {
@@ -92,6 +94,10 @@ impl JiraIssueFields {
         &self.status
     }
 
+    pub fn get_issue_type(&self) -> &IssueType {
+        &self.issue_type
+    }
+
     pub fn get_due_date(&self) -> Option<&Date> {
         self.due_date.as_ref()
     }
@@ -102,6 +108,106 @@ impl JiraIssueFields {
 
     pub fn get_sprints(&self) -> &[Sprint] {
         &self.sprints
+    }
+
+    pub fn get_parent(&self) -> Option<&IssueIdentifier> {
+        self.parent.as_ref()
+    }
+    pub fn get_children(&self) -> &[IssueIdentifier] {
+        &self.children
+    }
+}
+
+fn deserialize_description<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Deserialize::deserialize(deserializer).or_else(|_| Ok(String::new()))
+}
+
+#[derive(Debug)]
+pub struct IssueIdentifier {
+    key: JiraKey,
+    name: String,
+}
+
+impl IssueIdentifier {
+    pub fn get_key(&self) -> &JiraKey {
+        &self.key
+    }
+
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    fn deserialize_parent<'de, D>(deserializer: D) -> Result<Option<IssueIdentifier>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Mid {
+            key: String,
+            fields: MidFields,
+        }
+        #[derive(Deserialize)]
+        struct MidFields {
+            summary: String,
+        }
+        let Ok(mid): Result<Mid, _> = Deserialize::deserialize(deserializer) else {
+            return Ok(None);
+        };
+        Ok(Some(Self {
+            key: JiraKey(mid.key),
+            name: mid.fields.summary,
+        }))
+    }
+
+    fn deserialize_children<'de, D>(deserializer: D) -> Result<Vec<IssueIdentifier>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Mid {
+            key: String,
+            fields: MidFields,
+        }
+        #[derive(Deserialize)]
+        struct MidFields {
+            summary: String,
+        }
+
+        let Ok(mid): Result<Vec<Mid>, _> = Deserialize::deserialize(deserializer) else {
+            return Ok(Vec::new());
+        };
+
+        Ok(mid
+            .into_iter()
+            .map(|m| Self {
+                key: JiraKey(m.key),
+                name: m.fields.summary,
+            })
+            .collect())
+    }
+}
+
+impl<'de> Deserialize<'de> for IssueIdentifier {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct Mid {
+            key: String,
+            fields: MidFields,
+        }
+        #[derive(Deserialize)]
+        struct MidFields {
+            summary: String,
+        }
+
+        let mid: Mid = Deserialize::deserialize(deserializer)?;
+
+        Ok(IssueIdentifier {
+            key: JiraKey(mid.key),
+            name: mid.fields.summary,
+        })
     }
 }
 
@@ -178,23 +284,11 @@ impl JiraKey {
     pub fn new(key: &str) -> Self {
         Self(key.to_owned())
     }
-
-    fn deserialize_parent<'de, D>(deserializer: D) -> Result<Option<JiraKey>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct Parent {
-            key: String,
-        }
-        let mid: Parent = Deserialize::deserialize(deserializer)?;
-        Ok(Some(JiraKey(mid.key)))
-    }
 }
 
 pub fn get_issues(max_results: u32) -> JiraResponse {
     let url = format!(
-        "https://{}.atlassian.net/rest/api/3/search",
+        "https://{}.atlassian.net/rest/api/2/search",
         crate::config::CONFIG.get().unwrap().get_jira_url()
     );
 

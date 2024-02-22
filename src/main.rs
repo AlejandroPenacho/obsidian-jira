@@ -10,6 +10,7 @@ use std::io::Write;
 fn main() {
     let _ = config::CONFIG.set(config::Config::new()).unwrap();
     // test_jira();
+    // get_raw();
     create_many_notes("test_vault/jira");
     // test_create_note();
     // test_get_notes();
@@ -40,10 +41,13 @@ fn test_create_note() {
         commons::Priority::High,
         Some(commons::Date::new(date!(1975 - 04 - 12))),
         // None,
+        commons::IssueType::Task,
         commons::Status::InProgress,
         jira::JiraKey::new("MB-1004"),
         obsidian::TimeTrackingObsidian::new(Some("8:00"), Some("3:00"), Some("9:00")),
         vec![jira::Sprint::new("LA WEA".to_owned())],
+        Some(String::from("HAGAN SITIO")),
+        vec![String::from("ENEL"), String::from("JACUZZI")],
     );
     let properties = obsidian::Properties::new(jira_props);
     obsidian::create_obsidian_file("test_vault/replicant.md", Some(properties));
@@ -83,6 +87,44 @@ fn test_sprint(max_results: u32) -> () {
         .unwrap();
 
     println!("{:#?}", output);
+}
+
+fn get_raw() {
+    let max_results = 200;
+    let url = format!(
+        "https://{}.atlassian.net/rest/api/2/search",
+        crate::config::CONFIG.get().unwrap().get_jira_url()
+    );
+
+    let client = reqwest::blocking::Client::new();
+
+    let query = [
+        ("maxResults", max_results.to_string()),
+        /*
+        (
+            "jql",
+            format!(
+                "assignee={}",
+                crate::config::CONFIG.get().unwrap().get_user_id(),
+            ),
+        ),
+        */
+    ];
+
+    let auth_mail = crate::config::CONFIG.get().unwrap().get_user_mail();
+    let auth_token = crate::config::CONFIG.get().unwrap().get_jira_token();
+
+    let output = client
+        .get(url)
+        .basic_auth(auth_mail, Some(auth_token))
+        .query(&query)
+        .send()
+        .unwrap()
+        .json::<serde_json::Value>()
+        .unwrap();
+
+    let mut file = std::fs::File::create("docs/example_issue_response_v2.json").unwrap();
+    file.write(format!("{:#?}", output).as_bytes()).unwrap();
 }
 
 fn test_jira() {

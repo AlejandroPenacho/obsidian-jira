@@ -5,14 +5,14 @@ use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::fs::read_to_string;
 
-use crate::commons::{Date, Priority, Status, TimeEstimate};
-use crate::jira::TimeTrackingJira;
+use crate::commons::{Date, IssueType, Priority, Status, TimeEstimate};
+use crate::jira::{IssueIdentifier, TimeTrackingJira};
 
 use time::{Duration, Time};
 
 use regex;
 use serde;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_yaml;
 use time::macros::format_description;
 
@@ -46,6 +46,7 @@ pub struct JiraProperties {
     #[serde(serialize_with = "Priority::serialize_to_number")]
     priority: Priority,
     status: Status,
+    issue_type: crate::commons::IssueType,
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     due_date: Option<Date>,
@@ -53,7 +54,11 @@ pub struct JiraProperties {
     sprints: Vec<crate::jira::Sprint>,
     #[serde(flatten)]
     time_tracking: TimeTrackingObsidian,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    parent: Option<String>,
+    children: Vec<String>,
 }
+// Consider using custom serialization and deserialization for parent and children
 
 impl JiraProperties {
     pub fn from_jira_issue(issue: &crate::jira::JiraIssue) -> Self {
@@ -61,10 +66,17 @@ impl JiraProperties {
         JiraProperties {
             jira_key: issue.get_key().clone(),
             priority: *fields.get_priority(),
+            issue_type: *fields.get_issue_type(),
             status: *fields.get_status(),
             due_date: fields.get_due_date().cloned(),
             time_tracking: TimeTrackingObsidian::from(fields.get_time_tracking()),
             sprints: fields.get_sprints().iter().cloned().collect(),
+            parent: fields.get_parent().map(|x| format!("[[{}]]", x.get_name())),
+            children: fields
+                .get_children()
+                .iter()
+                .map(|x| format!("[[{}]]", x.get_name()))
+                .collect(),
         }
     }
 }
@@ -105,22 +117,45 @@ impl From<&TimeTrackingJira> for TimeTrackingObsidian {
     }
 }
 
+struct LinkedFilename(String);
+
+impl Serialize for LinkedFilename {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&format!("[[{}]]", self.0))
+    }
+}
+
+impl<'de> Deserialize<'de> for LinkedFilename {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text: String = Deserialize::deserialize(deserializer).unwrap();
+        Ok(LinkedFilename(
+            text.trim_matches(|x| x == '[' || x == ']').to_owned(),
+        ))
+    }
+}
+
 impl JiraProperties {
     pub fn new(
         priority: Priority,
         due_date: Option<Date>,
+        issue_type: IssueType,
         status: Status,
         jira_key: crate::jira::JiraKey,
         time_tracking: TimeTrackingObsidian,
         sprints: Vec<crate::jira::Sprint>,
+        parent: Option<String>,
+        children: Vec<String>,
     ) -> JiraProperties {
         JiraProperties {
             priority,
             due_date,
+            issue_type,
             status,
             jira_key,
             time_tracking,
             sprints,
+            parent,
+            children,
         }
     }
 }
