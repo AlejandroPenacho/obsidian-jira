@@ -8,7 +8,6 @@ use time::macros::date;
 use std::io::Write;
 
 fn main() {
-    let _ = config::CONFIG.set(config::Config::new()).unwrap();
     // test_jira();
     // get_raw();
     create_many_notes("test_vault/jira");
@@ -19,17 +18,17 @@ fn main() {
 }
 
 fn test_day_planner() {
-    let output = obsidian::read_day_planner("test_vault/2024-02-14.md");
+    // let output = obsidian::planner::read_day_plan("test_vault/2024-02-14.md");
 
-    for i in output {
-        println!("{:?}", i);
-    }
+    // for i in output {
+    //     println!("{:?}", i);
+    // }
 }
 
 fn test_get_notes() {
     println!("Hello, hello");
 
-    let notes = obsidian::get_all_notes("test_vault/jira");
+    let notes = obsidian::task_file::get_all_notes("test_vault/jira");
 
     for note in notes {
         println!("{:#?}", note);
@@ -37,26 +36,26 @@ fn test_get_notes() {
 }
 
 fn test_create_note() {
-    let jira_props = obsidian::JiraProperties::new(
+    let jira_props = obsidian::task_file::JiraProperties::new(
         commons::Priority::High,
         Some(commons::Date::new(date!(1975 - 04 - 12))),
         // None,
         commons::IssueType::Task,
         commons::Status::InProgress,
         jira::JiraKey::new("MB-1004"),
-        obsidian::TimeTrackingObsidian::new(Some("8:00"), Some("3:00"), Some("9:00")),
-        vec![jira::Sprint::new("LA WEA".to_owned())],
+        obsidian::task_file::TimeTrackingObsidian::new(Some("8:00"), Some("3:00"), Some("9:00")),
+        vec![commons::Sprint::new("LA WEA".to_owned())],
         Some(String::from("HAGAN SITIO")),
         vec![String::from("ENEL"), String::from("JACUZZI")],
     );
-    let properties = obsidian::Properties::new(jira_props);
-    obsidian::create_obsidian_file("test_vault/replicant.md", Some(properties));
+    let properties = obsidian::task_file::Properties::new(jira_props);
+    // obsidian::task_file::create_obsidian_file("test_vault/replicant.md", Some(properties));
 }
 
 fn test_sprint(max_results: u32) -> () {
     let url = format!(
         "https://{}.atlassian.net/rest/agile/1.0/board/5/sprint",
-        crate::config::CONFIG.get().unwrap().get_jira_url()
+        crate::config::CONFIG.get_jira_url()
     );
 
     let client = reqwest::blocking::Client::new();
@@ -74,8 +73,8 @@ fn test_sprint(max_results: u32) -> () {
         */
     ];
 
-    let auth_mail = crate::config::CONFIG.get().unwrap().get_user_mail();
-    let auth_token = crate::config::CONFIG.get().unwrap().get_jira_token();
+    let auth_mail = crate::config::CONFIG.get_user_mail();
+    let auth_token = crate::config::CONFIG.get_jira_token();
 
     let output = client
         .get(url)
@@ -93,7 +92,7 @@ fn get_raw() {
     let max_results = 200;
     let url = format!(
         "https://{}.atlassian.net/rest/api/2/search",
-        crate::config::CONFIG.get().unwrap().get_jira_url()
+        crate::config::CONFIG.get_jira_url()
     );
 
     let client = reqwest::blocking::Client::new();
@@ -111,8 +110,8 @@ fn get_raw() {
         */
     ];
 
-    let auth_mail = crate::config::CONFIG.get().unwrap().get_user_mail();
-    let auth_token = crate::config::CONFIG.get().unwrap().get_jira_token();
+    let auth_mail = crate::config::CONFIG.get_user_mail();
+    let auth_token = crate::config::CONFIG.get_jira_token();
 
     let output = client
         .get(url)
@@ -157,9 +156,9 @@ fn create_many_notes<P: AsRef<str>>(folder: P) {
     std::fs::create_dir(folder.as_ref()).unwrap();
     let response = jira::get_issues(20);
     let issues = response.get_issues().iter().map(|x| {
-        let jira_props = obsidian::JiraProperties::from_jira_issue(x);
+        let jira_props = obsidian::task_file::JiraProperties::from_jira_issue(x);
         let name = x.get_fields().get_summary().to_owned();
-        let props = obsidian::Properties::new(jira_props);
+        let props = obsidian::task_file::Properties::new(jira_props);
         (name, props)
     });
 
@@ -169,6 +168,6 @@ fn create_many_notes<P: AsRef<str>>(folder: P) {
             .join(name)
             .with_extension("md");
         println!("{:?}", path);
-        obsidian::create_obsidian_file(path, Some(props))
+        // obsidian::task_file::create_obsidian_file(path, Some(props))
     }
 }

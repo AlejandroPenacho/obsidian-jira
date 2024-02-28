@@ -39,6 +39,32 @@ impl Date {
     }
 }
 
+pub struct DateIterator {
+    current_date: time::Date,
+    end_date: time::Date,
+}
+
+impl DateIterator {
+    pub fn new(start_date: &Date, end_date: &Date) -> Self {
+        Self {
+            current_date: start_date.clone().0.previous_day().unwrap(),
+            end_date: end_date.clone().0,
+        }
+    }
+}
+
+impl Iterator for DateIterator {
+    type Item = Date;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current_date = self.current_date.next_day().unwrap();
+        if self.current_date <= self.end_date {
+            Some(Date::new(self.current_date.clone()))
+        } else {
+            None
+        }
+    }
+}
+
 impl Into<String> for Date {
     fn into(self) -> String {
         self.0.to_string()
@@ -223,5 +249,31 @@ impl TimeEstimate {
             return Ok(None);
         };
         Ok(Some(Self::from_secs(seconds)))
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Sprint(String);
+
+impl Sprint {
+    pub fn new(name: String) -> Self {
+        Self(name)
+    }
+
+    pub fn deserialize_sprint_vec_from_jira<'de, D>(
+        deserializer: D,
+    ) -> Result<Vec<Sprint>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Intermediate {
+            name: String,
+        }
+        let output: Vec<Intermediate> =
+            Deserialize::deserialize(deserializer).unwrap_or_else(|_| Vec::new());
+
+        Ok(output.into_iter().map(|x| Sprint(x.name)).collect())
     }
 }

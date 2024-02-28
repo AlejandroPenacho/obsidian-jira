@@ -4,7 +4,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 // use serde_json::Value;
 use std::fs::read_to_string;
 
-use crate::commons::{Date, DateTime, IssueType, Priority, Status, TimeEstimate};
+use crate::commons::{Date, DateTime, IssueType, Priority, Sprint, Status, TimeEstimate};
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -139,55 +139,6 @@ impl IssueIdentifier {
     pub fn get_name(&self) -> &str {
         &self.name
     }
-
-    fn deserialize_parent<'de, D>(deserializer: D) -> Result<Option<IssueIdentifier>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct Mid {
-            key: String,
-            fields: MidFields,
-        }
-        #[derive(Deserialize)]
-        struct MidFields {
-            summary: String,
-        }
-        let Ok(mid): Result<Mid, _> = Deserialize::deserialize(deserializer) else {
-            return Ok(None);
-        };
-        Ok(Some(Self {
-            key: JiraKey(mid.key),
-            name: mid.fields.summary,
-        }))
-    }
-
-    fn deserialize_children<'de, D>(deserializer: D) -> Result<Vec<IssueIdentifier>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct Mid {
-            key: String,
-            fields: MidFields,
-        }
-        #[derive(Deserialize)]
-        struct MidFields {
-            summary: String,
-        }
-
-        let Ok(mid): Result<Vec<Mid>, _> = Deserialize::deserialize(deserializer) else {
-            return Ok(Vec::new());
-        };
-
-        Ok(mid
-            .into_iter()
-            .map(|m| Self {
-                key: JiraKey(m.key),
-                name: m.fields.summary,
-            })
-            .collect())
-    }
 }
 
 impl<'de> Deserialize<'de> for IssueIdentifier {
@@ -223,30 +174,6 @@ pub struct User {
 impl User {
     pub fn get_display_name(&self) -> &str {
         &self.display_name
-    }
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct Sprint(String);
-
-impl Sprint {
-    pub fn new(name: String) -> Self {
-        Self(name)
-    }
-
-    fn deserialize_sprint_vec_from_jira<'de, D>(deserializer: D) -> Result<Vec<Sprint>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct Intermediate {
-            name: String,
-        }
-        let output: Vec<Intermediate> =
-            Deserialize::deserialize(deserializer).unwrap_or_else(|_| Vec::new());
-
-        Ok(output.into_iter().map(|x| Sprint(x.name)).collect())
     }
 }
 
@@ -289,7 +216,7 @@ impl JiraKey {
 pub fn get_issues(max_results: u32) -> JiraResponse {
     let url = format!(
         "https://{}.atlassian.net/rest/api/2/search",
-        crate::config::CONFIG.get().unwrap().get_jira_url()
+        crate::config::CONFIG.get_jira_url()
     );
 
     let client = reqwest::blocking::Client::new();
@@ -298,15 +225,12 @@ pub fn get_issues(max_results: u32) -> JiraResponse {
         ("maxResults", max_results.to_string()),
         (
             "jql",
-            format!(
-                "assignee={}",
-                crate::config::CONFIG.get().unwrap().get_user_id(),
-            ),
+            format!("assignee={}", crate::config::CONFIG.get_user_id(),),
         ),
     ];
 
-    let auth_mail = crate::config::CONFIG.get().unwrap().get_user_mail();
-    let auth_token = crate::config::CONFIG.get().unwrap().get_jira_token();
+    let auth_mail = crate::config::CONFIG.get_user_mail();
+    let auth_token = crate::config::CONFIG.get_jira_token();
 
     client
         .get(url)
