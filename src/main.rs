@@ -28,7 +28,7 @@ fn test_day_planner() {
 fn test_get_notes() {
     println!("Hello, hello");
 
-    let notes = obsidian::task_file::get_all_notes("test_vault/jira");
+    let notes = obsidian::task_file::get_all_tasks();
 
     for note in notes {
         println!("{:#?}", note);

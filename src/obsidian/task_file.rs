@@ -211,16 +211,31 @@ impl JiraProperties {
     }
 }
 
-pub fn get_all_notes<P: AsRef<Path>>(vault_path: P) -> Vec<ObsidianFile> {
+pub fn get_all_tasks() -> Vec<ObsidianFile> {
+    use crate::config::CONFIG;
+    let path: PathBuf = [CONFIG.get_project_path()].iter().collect();
+
+    get_notes_in_path(path)
+}
+
+pub fn get_notes_in_path<P: AsRef<Path>>(path: P) -> Vec<ObsidianFile> {
     let mut all_notes: Vec<ObsidianFile> = Vec::new();
-    let dir_walker = read_dir(vault_path).unwrap();
+
+    let mut complete_path: PathBuf = PathBuf::new();
+    complete_path.push(crate::config::CONFIG.get_vault_path());
+    complete_path.push(path);
+
+    let dir_walker = read_dir(complete_path).unwrap();
 
     for entry in dir_walker {
         let entry = entry.unwrap();
         if entry.file_type().unwrap().is_dir() {
-            all_notes.append(&mut get_all_notes(entry.path()));
+            all_notes.append(&mut get_notes_in_path(entry.path()));
         } else {
             let path = entry.path();
+            let path = path
+                .strip_prefix(crate::config::CONFIG.get_vault_path())
+                .unwrap();
             if path.extension().map_or(true, |x| x != "md") {
                 continue;
             }
@@ -234,6 +249,8 @@ pub fn get_all_notes<P: AsRef<Path>>(vault_path: P) -> Vec<ObsidianFile> {
 #[cfg(test)]
 mod test {
     use crate::obsidian::task_file::TimeTrackingObsidian;
+
+    use super::ObsidianFile;
 
     #[test]
     fn create_file() {
@@ -269,5 +286,19 @@ mod test {
             content: String::from("Buenas noches gente"),
         };
         file.save_file();
+    }
+
+    #[test]
+    fn read_file() {
+        let file = ObsidianFile::read_file("created_file");
+        println!("{:#?}", file);
+    }
+
+    #[test]
+    fn get_all_tasks() {
+        let tasks = super::get_all_tasks();
+        for task in tasks {
+            println!("{:#?}", task);
+        }
     }
 }

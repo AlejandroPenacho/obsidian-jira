@@ -37,6 +37,10 @@ impl Config {
     pub fn get_daily_notes_path(&self) -> &str {
         &self.get_inner().daily_notes_path
     }
+
+    pub fn get_project_path(&self) -> &str {
+        &self.get_inner().project_path
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,6 +51,7 @@ pub struct ConfigInner {
     jira_token: String,
     vault_path: String,
     daily_notes_path: String,
+    project_path: String,
 }
 
 impl ConfigInner {
