@@ -211,7 +211,7 @@ impl IssueType {
 #[derive(Serialize, Deserialize, Clone, Debug, Copy)]
 #[serde(into = "String")]
 #[serde(from = "&str")]
-pub struct TimeEstimate(time::Duration);
+pub struct TimeEstimate(pub time::Duration);
 
 impl Into<String> for TimeEstimate {
     fn into(self) -> String {
@@ -223,6 +223,9 @@ impl Into<String> for TimeEstimate {
 }
 impl From<&str> for TimeEstimate {
     fn from(input: &str) -> Self {
+        if input.is_empty() {
+            return TimeEstimate(time::Duration::ZERO);
+        }
         let mut splitted = input.split(":");
         let hours = splitted.next().unwrap().parse::<i64>().unwrap();
         let minutes = match splitted.next() {
@@ -252,7 +255,7 @@ impl TimeEstimate {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Sprint(String);
 

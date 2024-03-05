@@ -39,7 +39,7 @@ impl ObsidianFile {
         if has_properties {
             let end_of_properties = full_content[3..].find("---").unwrap() + 3;
             properties = Some(serde_yaml::from_str(&full_content[3..end_of_properties]).unwrap());
-            content = full_content[(end_of_properties + 4)..].to_owned();
+            content = full_content[(end_of_properties + 5)..].to_owned();
         } else {
             properties = None;
             content = full_content.to_owned();
@@ -94,11 +94,14 @@ pub struct JiraProperties {
     #[serde(serialize_with = "Priority::serialize_to_number")]
     priority: Priority,
     status: Status,
-    issue_type: crate::commons::IssueType,
+    // issue_type: crate::commons::IssueType,
     #[serde(default)]
+    #[serde(rename = "due date")]
     #[serde(skip_serializing_if = "Option::is_none")]
     due_date: Option<Date>,
-    jira_key: crate::jira::JiraKey,
+    // jira_key: crate::jira::JiraKey,
+    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_sprints")]
     sprints: Vec<Sprint>,
     #[serde(flatten)]
     time_tracking: TimeTrackingObsidian,
@@ -111,13 +114,19 @@ pub struct JiraProperties {
 }
 // Consider using custom serialization and deserialization for parent and children
 
+pub fn deserialize_sprints<'de, D: Deserializer<'de>>(
+    deserialize: D,
+) -> Result<Vec<Sprint>, D::Error> {
+    Ok(Deserialize::deserialize(deserialize).unwrap_or(vec![]))
+}
+
 impl JiraProperties {
     pub fn from_jira_issue(issue: &crate::jira::JiraIssue) -> Self {
         let fields = issue.get_fields();
         JiraProperties {
-            jira_key: issue.get_key().clone(),
+            // jira_key: issue.get_key().clone(),
             priority: *fields.get_priority(),
-            issue_type: *fields.get_issue_type(),
+            // issue_type: *fields.get_issue_type(),
             status: *fields.get_status(),
             due_date: fields.get_due_date().cloned(),
             time_tracking: TimeTrackingObsidian::from(fields.get_time_tracking()),
@@ -136,15 +145,15 @@ impl JiraProperties {
 pub struct TimeTrackingObsidian {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[serde(rename = "time original estimation")]
+    #[serde(rename = "original time")]
     original: Option<crate::commons::TimeEstimate>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[serde(rename = "time spent")]
+    #[serde(rename = "spent time")]
     spent: Option<crate::commons::TimeEstimate>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[serde(rename = "time left")]
+    #[serde(rename = "remaining time")]
     left: Option<crate::commons::TimeEstimate>,
 }
 
@@ -200,9 +209,9 @@ impl JiraProperties {
         JiraProperties {
             priority,
             due_date,
-            issue_type,
+            // issue_type,
             status,
-            jira_key,
+            // jira_key,
             time_tracking,
             sprints,
             parent,
@@ -259,8 +268,8 @@ mod test {
             priority: crate::commons::Priority::High,
             due_date: Some(crate::commons::Date::from("2024-03-14")),
             status: crate::commons::Status::InProgress,
-            issue_type: crate::commons::IssueType::Task,
-            jira_key: crate::jira::JiraKey::new("MB-123"),
+            // issue_type: crate::commons::IssueType::Task,
+            // jira_key: crate::jira::JiraKey::new("MB-123"),
             sprints: vec![
                 crate::commons::Sprint::new(String::from("Y24W12")),
                 crate::commons::Sprint::new(String::from("Y24W14")),
@@ -299,6 +308,113 @@ mod test {
         let tasks = super::get_all_tasks();
         for task in tasks {
             println!("{:#?}", task);
+        }
+    }
+
+    #[test]
+    fn get_week_tasks() {
+        let sprint = crate::commons::Sprint::new(String::from("Y24W10"));
+        let tasks = super::get_all_tasks();
+        let tasks = tasks.iter().filter(|x| match &x.properties {
+            Some(p) => p.jira.sprints.contains(&sprint),
+            None => false,
+        });
+
+        for task in tasks {
+            println!("{:#?}", task);
+        }
+    }
+
+    fn fmt_time(time: time::Duration, with_symbol: bool) -> String {
+        let abs_time: time::Duration;
+        if time.is_negative() {
+            abs_time = -time;
+        } else {
+            abs_time = time;
+        }
+
+        let hours = abs_time.whole_hours();
+        let minutes = abs_time.whole_minutes() - 60 * hours;
+
+        let symbol: String;
+        if !with_symbol {
+            symbol = String::new();
+        } else if time.is_negative() {
+            symbol = String::from("-")
+        } else {
+            symbol = String::from("+")
+        };
+
+        format!("{}{:>2}:{:0>2}", symbol, hours, minutes)
+    }
+
+    #[test]
+    fn get_week_schedule() {
+        let sprint = crate::commons::Sprint::new(String::from("Y24W10"));
+        let sprint_tasks = super::get_all_tasks();
+        let sprint_tasks = sprint_tasks.iter().filter(|x| match &x.properties {
+            Some(p) => p.jira.sprints.contains(&sprint),
+            None => false,
+        });
+
+        use crate::obsidian::planner::read_period_times;
+
+        let planned_tasks = read_period_times(
+            &crate::commons::Date::from("2024-03-04"),
+            &crate::commons::Date::from("2024-03-08"),
+        );
+
+        #[derive(Debug)]
+        struct OutputData {
+            name: String,
+            expected_time: time::Duration,
+            allocated_time: time::Duration,
+        }
+
+        let mut output_data: Vec<OutputData> = Vec::new();
+
+        for task in sprint_tasks {
+            let name = task
+                .path
+                .with_extension("")
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_owned();
+            let expected_time = task
+                .properties
+                .as_ref()
+                .unwrap()
+                .jira
+                .time_tracking
+                .left
+                .unwrap()
+                .0;
+
+            println!("{}", name);
+            let allocated_time: time::Duration = match planned_tasks.iter().find(|x| x.0 == &name) {
+                Some(x) => *x.1,
+                None => time::Duration::ZERO,
+            };
+
+            output_data.push(OutputData {
+                name,
+                expected_time,
+                allocated_time,
+            })
+        }
+
+        println!("Expected\tAllocated\tDifference");
+        for task in output_data {
+            let diff = task.allocated_time - task.expected_time;
+            println!(
+                "{}\t\t{}\t\t{}\t\t{}",
+                fmt_time(task.expected_time, false),
+                fmt_time(task.allocated_time, false),
+                fmt_time(diff, true),
+                task.name
+            );
         }
     }
 }

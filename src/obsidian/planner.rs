@@ -52,6 +52,7 @@ pub fn read_period_plan(start_date: &Date, end_date: &Date) -> Vec<PlannedTask> 
 }
 
 pub fn read_day_plan(date: &Date) -> Option<Vec<PlannedTask>> {
+    // println!("{:?}", date);
     let vault_path = crate::config::CONFIG.get_vault_path();
     let day_planner_path = crate::config::CONFIG.get_daily_notes_path();
     let date_string: String = date.clone().into();
@@ -138,8 +139,8 @@ mod test {
     #[test]
     fn get_week_time_allocation() {
         use super::read_period_times;
-        let start_date = crate::commons::Date::from("2024-02-26");
-        let end_date = crate::commons::Date::from("2024-03-01");
+        let start_date = crate::commons::Date::from("2024-03-04");
+        let end_date = crate::commons::Date::from("2024-03-08");
 
         let tasks = read_period_times(&start_date, &end_date);
 
