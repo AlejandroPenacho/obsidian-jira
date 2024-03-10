@@ -162,7 +162,10 @@ pub fn print_sprint_balance(year: i32, iso_week: u8) {
     use std::cmp::Ordering::*;
 
     sprint_data.sort_by(|a, b| match (a.1.in_sprint, b.1.in_sprint) {
-        (true, true) => a.1.remaining_time.cmp(&b.1.remaining_time),
+        (true, true) => match a.1.remaining_time.cmp(&b.1.remaining_time) {
+            Equal => a.0.cmp(&b.0),
+            x => return x,
+        },
         (true, false) => Greater,
         (false, true) => Less,
         (false, false) => a.0.partial_cmp(&b.0).unwrap(),
