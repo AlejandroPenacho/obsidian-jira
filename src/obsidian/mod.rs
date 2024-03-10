@@ -11,7 +11,7 @@ struct TaskTimes {
     completed_time: time::Duration,
 }
 
-pub fn get_sprint_balance(year: i32, iso_week: u8) -> HashMap<String, TaskTimes> {
+fn get_sprint_balance(year: i32, iso_week: u8) -> HashMap<String, TaskTimes> {
     let mut sprint_tasks_filter = task_file::TaskFilter::new();
 
     let sprint = crate::commons::Sprint::from(

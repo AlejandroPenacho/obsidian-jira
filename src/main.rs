@@ -94,13 +94,13 @@ fn test_jira() {
     println!("{:#?}", response);
 
     for issue in response.get_issues() {
-        let summary = issue.get_fields().get_summary();
-        let created = issue.get_fields().get_creation_date();
-        let user = issue
+        let _summary = issue.get_fields().get_summary();
+        let _created = issue.get_fields().get_creation_date();
+        let _user = issue
             .get_fields()
             .get_reporter()
             .map(|x| x.get_display_name());
-        let priority = issue.get_fields().get_priority();
+        let _priority = issue.get_fields().get_priority();
         println!("{:#?}", issue);
     }
 

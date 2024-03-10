@@ -1,8 +1,8 @@
-use crate::commons::{Date, DateTime};
+use crate::commons::{Date};
 use std::collections::HashMap;
-use std::path::Path;
+
 use time::macros::format_description;
-use time::{Duration, Time};
+use time::{Time};
 
 use std::fs::read_to_string;
 
@@ -42,7 +42,7 @@ impl TaskSchedule {
         let mut planned_tasks = Vec::new();
 
         for date in crate::commons::DateIterator::new(start_date, end_date) {
-            let mut tasks = read_day_plan(&date);
+            let tasks = read_day_plan(&date);
             if let Some(mut tasks) = tasks {
                 planned_tasks.append(&mut tasks);
             }

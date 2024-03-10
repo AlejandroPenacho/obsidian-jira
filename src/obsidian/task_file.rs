@@ -2,19 +2,19 @@ use std::fs::read_dir;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use std::collections::HashMap;
+
 use std::fs::read_to_string;
 
-use crate::commons::{Date, IssueType, Priority, Sprint, Status, TimeEstimate};
+use crate::commons::{Date, Priority, Sprint, Status, TimeEstimate};
 use crate::jira::TimeTrackingJira;
 
-use time::{Duration, Time};
 
-use regex;
+
+
 use serde;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_yaml;
-use time::macros::format_description;
+
 
 #[derive(Debug)]
 pub struct TaskFile {
@@ -31,7 +31,7 @@ impl TaskFile {
         complete_path.set_extension("md");
 
         let full_content = read_to_string(&complete_path).unwrap();
-        let has_properties = full_content.starts_with("---");
+        let _has_properties = full_content.starts_with("---");
 
         let end_of_properties = full_content[3..].find("---").unwrap() + 3;
 
@@ -248,7 +248,7 @@ impl TaskFilter {
 
 #[cfg(test)]
 mod test {
-    use crate::obsidian::task_file::TaskFilter;
+    
 
     #[test]
     fn create_file() {
