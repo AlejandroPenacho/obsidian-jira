@@ -17,14 +17,14 @@ use serde_yaml;
 use time::macros::format_description;
 
 #[derive(Debug)]
-pub struct ObsidianFile {
+pub struct TaskFile {
     path: PathBuf,
     content: String,
-    properties: Option<Properties>,
+    properties: TaskProperties,
 }
 
-impl ObsidianFile {
-    pub fn read_file<P: AsRef<Path>>(path: P) -> Self {
+impl TaskFile {
+    pub fn read<P: AsRef<Path>>(path: P) -> Self {
         let mut complete_path = PathBuf::new();
         complete_path.push(crate::config::CONFIG.get_vault_path());
         complete_path.push(&path);
@@ -33,26 +33,21 @@ impl ObsidianFile {
         let full_content = read_to_string(&complete_path).unwrap();
         let has_properties = full_content.starts_with("---");
 
-        let content: String;
-        let properties: Option<Properties>;
+        let end_of_properties = full_content[3..].find("---").unwrap() + 3;
 
-        if has_properties {
-            let end_of_properties = full_content[3..].find("---").unwrap() + 3;
-            properties = Some(serde_yaml::from_str(&full_content[3..end_of_properties]).unwrap());
-            content = full_content[(end_of_properties + 5)..].to_owned();
-        } else {
-            properties = None;
-            content = full_content.to_owned();
-        }
+        let properties: TaskProperties =
+            serde_yaml::from_str(&full_content[3..end_of_properties]).unwrap();
 
-        return ObsidianFile {
+        let content: String = full_content[(end_of_properties + 5)..].to_owned();
+
+        return TaskFile {
             path: path.as_ref().to_owned(),
             content,
             properties,
         };
     }
 
-    pub fn save_file(&self) -> Result<(), ()> {
+    pub fn save(&self) -> Result<(), ()> {
         let mut complete_path = PathBuf::new();
         complete_path.push(crate::config::CONFIG.get_vault_path());
         complete_path.push(&self.path);
@@ -60,11 +55,13 @@ impl ObsidianFile {
 
         let mut file = std::fs::File::create(complete_path).unwrap();
         let mut content = String::new();
-        if let Some(properties) = &self.properties {
-            content.push_str("---\n");
-            content.push_str(&format!("{}", serde_yaml::to_string(&properties).unwrap()));
-            content.push_str("\n---\n")
-        }
+        content.push_str("---\n");
+        content.push_str(&format!(
+            "{}",
+            serde_yaml::to_string(&self.properties).unwrap()
+        ));
+        content.push_str("\n---\n");
+
         file.write(content.as_bytes()).unwrap();
 
         Ok(())
@@ -72,24 +69,7 @@ impl ObsidianFile {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Properties {
-    #[serde(flatten)]
-    jira: JiraProperties,
-    #[serde(flatten)]
-    other: HashMap<String, serde_yaml::Value>,
-}
-
-impl Properties {
-    pub fn new(jira_props: JiraProperties) -> Self {
-        Properties {
-            jira: jira_props,
-            other: HashMap::new(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct JiraProperties {
+pub struct TaskProperties {
     #[serde(deserialize_with = "Priority::deserialize_from_number")]
     #[serde(serialize_with = "Priority::serialize_to_number")]
     priority: Priority,
@@ -105,12 +85,12 @@ pub struct JiraProperties {
     sprints: Vec<Sprint>,
     #[serde(flatten)]
     time_tracking: TimeTrackingObsidian,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    parent: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    #[serde(default)]
-    children: Vec<String>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // #[serde(default)]
+    // parent: Option<String>,
+    // #[serde(skip_serializing_if = "Vec::is_empty")]
+    // #[serde(default)]
+    // children: Vec<String>,
 }
 // Consider using custom serialization and deserialization for parent and children
 
@@ -118,27 +98,6 @@ pub fn deserialize_sprints<'de, D: Deserializer<'de>>(
     deserialize: D,
 ) -> Result<Vec<Sprint>, D::Error> {
     Ok(Deserialize::deserialize(deserialize).unwrap_or(vec![]))
-}
-
-impl JiraProperties {
-    pub fn from_jira_issue(issue: &crate::jira::JiraIssue) -> Self {
-        let fields = issue.get_fields();
-        JiraProperties {
-            // jira_key: issue.get_key().clone(),
-            priority: *fields.get_priority(),
-            // issue_type: *fields.get_issue_type(),
-            status: *fields.get_status(),
-            due_date: fields.get_due_date().cloned(),
-            time_tracking: TimeTrackingObsidian::from(fields.get_time_tracking()),
-            sprints: fields.get_sprints().iter().cloned().collect(),
-            parent: fields.get_parent().map(|x| format!("[[{}]]", x.get_name())),
-            children: fields
-                .get_children()
-                .iter()
-                .map(|x| format!("[[{}]]", x.get_name()))
-                .collect(),
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -194,77 +153,91 @@ impl<'de> Deserialize<'de> for LinkedFilename {
     }
 }
 
-impl JiraProperties {
-    pub fn new(
-        priority: Priority,
-        due_date: Option<Date>,
-        issue_type: IssueType,
-        status: Status,
-        jira_key: crate::jira::JiraKey,
-        time_tracking: TimeTrackingObsidian,
-        sprints: Vec<Sprint>,
-        parent: Option<String>,
-        children: Vec<String>,
-    ) -> JiraProperties {
-        JiraProperties {
-            priority,
-            due_date,
-            // issue_type,
-            status,
-            // jira_key,
-            time_tracking,
-            sprints,
-            parent,
-            children,
+struct TaskFilter {
+    sprints: Option<Vec<Sprint>>,
+    path: PathBuf,
+    recursive: bool,
+}
+
+impl TaskFilter {
+    pub fn new() -> Self {
+        Self {
+            sprints: None,
+            path: PathBuf::new(),
+            recursive: false,
         }
     }
-}
 
-pub fn get_all_tasks() -> Vec<ObsidianFile> {
-    use crate::config::CONFIG;
-    let path: PathBuf = [CONFIG.get_project_path()].iter().collect();
+    pub fn set_sprints(&mut self, sprints: &[Sprint]) -> &mut Self {
+        self.sprints = Some(sprints.to_owned());
+        self
+    }
 
-    get_notes_in_path(path)
-}
+    pub fn set_path<P: Into<PathBuf>>(&mut self, path: P) -> &mut Self {
+        self.path = path.into();
+        self
+    }
 
-pub fn get_notes_in_path<P: AsRef<Path>>(path: P) -> Vec<ObsidianFile> {
-    let mut all_notes: Vec<ObsidianFile> = Vec::new();
+    pub fn get_tasks(&self) -> Vec<TaskFile> {
+        use crate::config::CONFIG;
+        let mut complete_path = PathBuf::new();
+        complete_path.push(CONFIG.get_vault_path());
+        complete_path.push(self.path.clone());
 
-    let mut complete_path: PathBuf = PathBuf::new();
-    complete_path.push(crate::config::CONFIG.get_vault_path());
-    complete_path.push(path);
+        let mut output = Vec::new();
+        self.read_directory(complete_path, &mut output).unwrap();
+        output
+    }
 
-    let dir_walker = read_dir(complete_path).unwrap();
-
-    for entry in dir_walker {
-        let entry = entry.unwrap();
-        if entry.file_type().unwrap().is_dir() {
-            all_notes.append(&mut get_notes_in_path(entry.path()));
-        } else {
-            let path = entry.path();
-            let path = path
-                .strip_prefix(crate::config::CONFIG.get_vault_path())
-                .unwrap();
-            if path.extension().map_or(true, |x| x != "md") {
-                continue;
+    fn task_fulfills_criteria(&self, task_file: &TaskFile) -> bool {
+        if let Some(sprints) = &self.sprints {
+            if sprints
+                .iter()
+                .all(|f_sprint| !task_file.properties.sprints.contains(f_sprint))
+            {
+                return false;
             }
-            all_notes.push(ObsidianFile::read_file(path));
         }
+
+        true
     }
 
-    return all_notes;
+    fn read_directory(
+        &self,
+        complete_path: PathBuf,
+        files: &mut Vec<TaskFile>,
+    ) -> Result<(), String> {
+        for entry in read_dir(&complete_path).unwrap() {
+            let entry = entry.unwrap();
+            let entry_path = entry.path();
+            if entry.file_type().unwrap().is_dir() {
+                if self.recursive {
+                    self.read_directory(entry_path, files).unwrap();
+                }
+            } else {
+                let reduced_path = entry_path
+                    .strip_prefix(crate::config::CONFIG.get_vault_path())
+                    .unwrap();
+
+                let task_file = TaskFile::read(reduced_path);
+                if self.task_fulfills_criteria(&task_file) {
+                    files.push(task_file)
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::obsidian::task_file::TimeTrackingObsidian;
-
-    use super::ObsidianFile;
+    use crate::obsidian::task_file::TaskFilter;
 
     #[test]
     fn create_file() {
-        use super::{JiraProperties, ObsidianFile, Properties};
-        let jira_props = JiraProperties {
+        use super::{TaskFile, TaskProperties, TimeTrackingObsidian};
+        let properties = TaskProperties {
             priority: crate::commons::Priority::High,
             due_date: Some(crate::commons::Date::from("2024-03-14")),
             status: crate::commons::Status::InProgress,
@@ -279,48 +252,45 @@ mod test {
                 spent: None,
                 left: None,
             },
-            parent: Some(String::from("Problems/In The Water")),
-            children: vec![String::from("First Problems")],
-        };
-        let properties = Properties {
-            jira: jira_props,
-            other: std::collections::HashMap::new(),
+            // parent: Some(String::from("Problems/In The Water")),
+            // children: vec![String::from("First Problems")],
         };
 
         let mut path: std::path::PathBuf = ["created_file"].iter().collect();
         path.set_extension("md");
-        let file = ObsidianFile {
+        let file = TaskFile {
             path,
-            properties: Some(properties),
+            properties,
             content: String::from("Buenas noches gente"),
         };
-        file.save_file();
+        file.save();
     }
 
     #[test]
     fn read_file() {
-        let file = ObsidianFile::read_file("created_file");
+        use super::TaskFile;
+        let file = TaskFile::read("read_file");
         println!("{:#?}", file);
     }
 
     #[test]
-    fn get_all_tasks() {
-        let tasks = super::get_all_tasks();
-        for task in tasks {
+    fn get_all_project_tasks() {
+        let mut task_filter = super::TaskFilter::new();
+        task_filter.set_path(crate::config::CONFIG.get_project_path());
+
+        for task in task_filter.get_tasks() {
             println!("{:#?}", task);
         }
     }
 
     #[test]
-    fn get_week_tasks() {
-        let sprint = crate::commons::Sprint::new(String::from("Y24W10"));
-        let tasks = super::get_all_tasks();
-        let tasks = tasks.iter().filter(|x| match &x.properties {
-            Some(p) => p.jira.sprints.contains(&sprint),
-            None => false,
-        });
+    fn get_sprint_tasks() {
+        let mut task_filter = super::TaskFilter::new();
+        task_filter
+            .set_sprints(&[crate::commons::Sprint::new("Y24W10".to_owned())])
+            .set_path(crate::config::CONFIG.get_project_path());
 
-        for task in tasks {
+        for task in task_filter.get_tasks() {
             println!("{:#?}", task);
         }
     }
@@ -351,12 +321,7 @@ mod test {
     #[test]
     fn get_week_schedule() {
         let sprint = crate::commons::Sprint::new(String::from("Y24W10"));
-        let sprint_tasks = super::get_all_tasks();
-        let sprint_tasks = sprint_tasks.iter().filter(|x| match &x.properties {
-            Some(p) => p.jira.sprints.contains(&sprint),
-            None => false,
-        });
-
+        let sprint_tasks = TaskFilter::new().get_tasks();
         use crate::obsidian::planner::read_period_times;
 
         let planned_tasks = read_period_times(
@@ -382,15 +347,7 @@ mod test {
                 .to_str()
                 .unwrap()
                 .to_owned();
-            let expected_time = task
-                .properties
-                .as_ref()
-                .unwrap()
-                .jira
-                .time_tracking
-                .left
-                .unwrap()
-                .0;
+            let expected_time = task.properties.time_tracking.left.unwrap().0;
 
             println!("{}", name);
             let allocated_time: time::Duration = match planned_tasks.iter().find(|x| x.0 == &name) {

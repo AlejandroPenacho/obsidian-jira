@@ -10,7 +10,7 @@ use std::io::Write;
 fn main() {
     // test_jira();
     // get_raw();
-    create_many_notes("test_vault/jira");
+    // create_many_notes("test_vault/jira");
     // test_create_note();
     // test_get_notes();
     // test_sprint(20);
@@ -23,33 +23,6 @@ fn test_day_planner() {
     // for i in output {
     //     println!("{:?}", i);
     // }
-}
-
-fn test_get_notes() {
-    println!("Hello, hello");
-
-    let notes = obsidian::task_file::get_all_tasks();
-
-    for note in notes {
-        println!("{:#?}", note);
-    }
-}
-
-fn test_create_note() {
-    let jira_props = obsidian::task_file::JiraProperties::new(
-        commons::Priority::High,
-        Some(commons::Date::new(date!(1975 - 04 - 12))),
-        // None,
-        commons::IssueType::Task,
-        commons::Status::InProgress,
-        jira::JiraKey::new("MB-1004"),
-        obsidian::task_file::TimeTrackingObsidian::new(Some("8:00"), Some("3:00"), Some("9:00")),
-        vec![commons::Sprint::new("LA WEA".to_owned())],
-        Some(String::from("HAGAN SITIO")),
-        vec![String::from("ENEL"), String::from("JACUZZI")],
-    );
-    let properties = obsidian::task_file::Properties::new(jira_props);
-    // obsidian::task_file::create_obsidian_file("test_vault/replicant.md", Some(properties));
 }
 
 fn test_sprint(max_results: u32) -> () {
@@ -151,6 +124,7 @@ fn test_jira() {
     */
 }
 
+/*
 use std::path::PathBuf;
 fn create_many_notes<P: AsRef<str>>(folder: P) {
     std::fs::create_dir(folder.as_ref()).unwrap();
@@ -171,3 +145,4 @@ fn create_many_notes<P: AsRef<str>>(folder: P) {
         // obsidian::task_file::create_obsidian_file(path, Some(props))
     }
 }
+*/
