@@ -1,28 +1,17 @@
+#![allow(dead_code)]
+
 mod commons;
 mod config;
 mod jira;
 mod obsidian;
 
-use time::macros::date;
+use obsidian::print_sprint_balance;
 
 use std::io::Write;
 
 fn main() {
-    // test_jira();
-    // get_raw();
-    // create_many_notes("test_vault/jira");
-    // test_create_note();
-    // test_get_notes();
-    // test_sprint(20);
-    // println!("{:?}", config::CONFIG.get().unwrap());
-}
-
-fn test_day_planner() {
-    // let output = obsidian::planner::read_day_plan("test_vault/2024-02-14.md");
-
-    // for i in output {
-    //     println!("{:?}", i);
-    // }
+    let iso_week = time::OffsetDateTime::now_local().unwrap().date().iso_week();
+    print_sprint_balance(2024, iso_week);
 }
 
 fn test_sprint(max_results: u32) -> () {

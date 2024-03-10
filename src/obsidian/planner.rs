@@ -1,4 +1,5 @@
 use crate::commons::{Date, DateTime};
+use std::collections::HashMap;
 use std::path::Path;
 use time::macros::format_description;
 use time::{Duration, Time};
@@ -15,40 +16,63 @@ pub struct PlannedTask {
     completed: bool,
 }
 
-pub fn read_period_times(
-    start_date: &Date,
-    end_date: &Date,
-) -> std::collections::HashMap<String, time::Duration> {
-    let planned_tasks = read_period_plan(start_date, end_date);
-
-    let mut tasks: std::collections::HashMap<String, time::Duration> =
-        std::collections::HashMap::new();
-
-    for planned in planned_tasks {
-        let name = planned.name;
-        let duration = planned.end - planned.start;
-
-        if tasks.contains_key(&name) {
-            *tasks.get_mut(&name).unwrap() += duration;
-        } else {
-            tasks.insert(name, duration);
-        }
-    }
-
-    tasks
+#[derive(Default, Debug)]
+pub struct TimeAllocation {
+    uncompleted_time: time::Duration,
+    completed_time: time::Duration,
 }
 
-pub fn read_period_plan(start_date: &Date, end_date: &Date) -> Vec<PlannedTask> {
-    let mut output = Vec::new();
+impl TimeAllocation {
+    pub fn get_uncompleted_time(&self) -> time::Duration {
+        self.uncompleted_time
+    }
+    pub fn get_completed_time(&self) -> time::Duration {
+        self.completed_time
+    }
+}
 
-    for date in crate::commons::DateIterator::new(start_date, end_date) {
-        let mut tasks = read_day_plan(&date);
-        if let Some(mut tasks) = tasks {
-            output.append(&mut tasks);
+#[derive(Debug)]
+pub struct TaskSchedule {
+    planned_tasks: Vec<PlannedTask>,
+    time_allocations: HashMap<String, TimeAllocation>,
+}
+
+impl TaskSchedule {
+    pub fn new(start_date: &Date, end_date: &Date) -> Self {
+        let mut planned_tasks = Vec::new();
+
+        for date in crate::commons::DateIterator::new(start_date, end_date) {
+            let mut tasks = read_day_plan(&date);
+            if let Some(mut tasks) = tasks {
+                planned_tasks.append(&mut tasks);
+            }
+        }
+
+        let mut time_allocations = HashMap::new();
+        for planned_task in planned_tasks.iter() {
+            let allocation = time_allocations
+                .entry(planned_task.name.clone())
+                .or_insert_with(|| TimeAllocation::default());
+
+            if planned_task.completed {
+                allocation.completed_time += planned_task.end - planned_task.start;
+            } else {
+                allocation.uncompleted_time += planned_task.end - planned_task.start;
+            }
+        }
+        Self {
+            planned_tasks,
+            time_allocations,
         }
     }
 
-    output
+    pub fn get_task_time_allocation(&self, task_name: &str) -> Option<&TimeAllocation> {
+        self.time_allocations.get(task_name)
+    }
+
+    pub fn iter_time_allocations(&self) -> impl Iterator<Item = (&String, &TimeAllocation)> {
+        self.time_allocations.iter()
+    }
 }
 
 pub fn read_day_plan(date: &Date) -> Option<Vec<PlannedTask>> {
@@ -125,31 +149,11 @@ mod test {
     }
     #[test]
     fn read_week() {
-        use super::read_period_plan;
         let start_date = crate::commons::Date::from("2024-02-26");
         let end_date = crate::commons::Date::from("2024-03-01");
 
-        let all_tasks = read_period_plan(&start_date, &end_date);
+        let schedule = super::TaskSchedule::new(&start_date, &end_date);
 
-        for task in all_tasks {
-            println!("{:#?}", task)
-        }
-    }
-
-    #[test]
-    fn get_week_time_allocation() {
-        use super::read_period_times;
-        let start_date = crate::commons::Date::from("2024-03-04");
-        let end_date = crate::commons::Date::from("2024-03-08");
-
-        let tasks = read_period_times(&start_date, &end_date);
-
-        for pair in tasks.iter() {
-            let name = pair.0;
-            let duration = pair.1;
-            let hours = duration.whole_hours();
-            let minutes = duration.whole_minutes() - hours * 60;
-            println!("{:0>2}:{:0>2}\t\t{}", hours, minutes, name)
-        }
+        println!("{:#?}", schedule);
     }
 }

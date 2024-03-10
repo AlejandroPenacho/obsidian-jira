@@ -33,6 +33,12 @@ impl From<&str> for Date {
     }
 }
 
+impl From<time::Date> for Date {
+    fn from(input: time::Date) -> Date {
+        return Date(input);
+    }
+}
+
 impl Date {
     pub fn new(date: time::Date) -> Self {
         Date(date)
@@ -278,5 +284,11 @@ impl Sprint {
             Deserialize::deserialize(deserializer).unwrap_or_else(|_| Vec::new());
 
         Ok(output.into_iter().map(|x| Sprint(x.name)).collect())
+    }
+}
+
+impl From<&str> for Sprint {
+    fn from(input: &str) -> Self {
+        Self(input.to_owned())
     }
 }

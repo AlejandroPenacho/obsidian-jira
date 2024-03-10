@@ -66,6 +66,18 @@ impl TaskFile {
 
         Ok(())
     }
+
+    pub fn get_name(&self) -> String {
+        self.path.file_stem().unwrap().to_str().unwrap().to_owned()
+    }
+
+    pub fn get_remaining_time(&self) -> time::Duration {
+        self.properties
+            .time_tracking
+            .remaining
+            .map(|x| x.0)
+            .unwrap_or_default()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -104,7 +116,7 @@ pub fn deserialize_sprints<'de, D: Deserializer<'de>>(
 pub struct TimeTrackingObsidian {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[serde(rename = "original time")]
+    #[serde(rename = "original estimate")]
     original: Option<crate::commons::TimeEstimate>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
@@ -113,15 +125,19 @@ pub struct TimeTrackingObsidian {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     #[serde(rename = "remaining time")]
-    left: Option<crate::commons::TimeEstimate>,
+    remaining: Option<crate::commons::TimeEstimate>,
 }
 
 impl TimeTrackingObsidian {
-    pub fn new(original: Option<&str>, spent: Option<&str>, estimate_left: Option<&str>) -> Self {
+    pub fn new(
+        original: Option<&str>,
+        spent: Option<&str>,
+        estimate_remaining: Option<&str>,
+    ) -> Self {
         Self {
             original: original.map(|x| TimeEstimate::from(x)),
-            left: spent.map(|x| TimeEstimate::from(x)),
-            spent: estimate_left.map(|x| TimeEstimate::from(x)),
+            remaining: spent.map(|x| TimeEstimate::from(x)),
+            spent: estimate_remaining.map(|x| TimeEstimate::from(x)),
         }
     }
 }
@@ -130,7 +146,7 @@ impl From<&TimeTrackingJira> for TimeTrackingObsidian {
     fn from(input: &TimeTrackingJira) -> TimeTrackingObsidian {
         TimeTrackingObsidian {
             original: input.get_time_original().cloned(),
-            left: input.get_time_left().cloned(),
+            remaining: input.get_time_left().cloned(),
             spent: input.get_time_spent().cloned(),
         }
     }
@@ -153,7 +169,7 @@ impl<'de> Deserialize<'de> for LinkedFilename {
     }
 }
 
-struct TaskFilter {
+pub struct TaskFilter {
     sprints: Option<Vec<Sprint>>,
     path: PathBuf,
     recursive: bool,
@@ -250,7 +266,7 @@ mod test {
             time_tracking: TimeTrackingObsidian {
                 original: None,
                 spent: None,
-                left: None,
+                remaining: None,
             },
             // parent: Some(String::from("Problems/In The Water")),
             // children: vec![String::from("First Problems")],
@@ -316,62 +332,5 @@ mod test {
         };
 
         format!("{}{:>2}:{:0>2}", symbol, hours, minutes)
-    }
-
-    #[test]
-    fn get_week_schedule() {
-        let sprint = crate::commons::Sprint::new(String::from("Y24W10"));
-        let sprint_tasks = TaskFilter::new().get_tasks();
-        use crate::obsidian::planner::read_period_times;
-
-        let planned_tasks = read_period_times(
-            &crate::commons::Date::from("2024-03-04"),
-            &crate::commons::Date::from("2024-03-08"),
-        );
-
-        #[derive(Debug)]
-        struct OutputData {
-            name: String,
-            expected_time: time::Duration,
-            allocated_time: time::Duration,
-        }
-
-        let mut output_data: Vec<OutputData> = Vec::new();
-
-        for task in sprint_tasks {
-            let name = task
-                .path
-                .with_extension("")
-                .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_owned();
-            let expected_time = task.properties.time_tracking.left.unwrap().0;
-
-            println!("{}", name);
-            let allocated_time: time::Duration = match planned_tasks.iter().find(|x| x.0 == &name) {
-                Some(x) => *x.1,
-                None => time::Duration::ZERO,
-            };
-
-            output_data.push(OutputData {
-                name,
-                expected_time,
-                allocated_time,
-            })
-        }
-
-        println!("Expected\tAllocated\tDifference");
-        for task in output_data {
-            let diff = task.allocated_time - task.expected_time;
-            println!(
-                "{}\t\t{}\t\t{}\t\t{}",
-                fmt_time(task.expected_time, false),
-                fmt_time(task.allocated_time, false),
-                fmt_time(diff, true),
-                task.name
-            );
-        }
     }
 }
