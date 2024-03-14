@@ -18,6 +18,10 @@ impl Config {
         &self.get_inner().jira_url
     }
 
+    pub fn get_week(&self) -> Option<u8> {
+        self.get_inner().week
+    }
+
     pub fn get_user_id(&self) -> &str {
         &self.get_inner().user_id
     }
@@ -52,6 +56,8 @@ pub struct ConfigInner {
     vault_path: String,
     daily_notes_path: String,
     project_path: String,
+    #[serde(default)]
+    week: Option<u8>,
 }
 
 impl ConfigInner {
