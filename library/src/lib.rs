@@ -1,50 +1,13 @@
 #![allow(dead_code)]
 
-mod commons;
-mod config;
-mod jira;
-mod obsidian;
+pub mod commons;
+pub mod config;
+pub mod jira;
+pub mod obsidian;
 
 use obsidian::print_sprint_balance;
 
 use std::io::Write;
-
-use notify::{RecursiveMode, Watcher};
-
-fn main() -> notify::Result<()> {
-    let iso_week = config::CONFIG
-        .get_week()
-        .unwrap_or_else(|| time::OffsetDateTime::now_local().unwrap().date().iso_week());
-
-    print_sprint_balance(2024, iso_week);
-
-    let watch_path: std::path::PathBuf = [
-        config::CONFIG.get_vault_path(),
-        config::CONFIG.get_daily_notes_path(),
-    ]
-    .iter()
-    .collect();
-
-    let (tx, rx) = std::sync::mpsc::channel();
-
-    println!("Watching {:?}", watch_path);
-
-    let mut watcher = notify::RecommendedWatcher::new(tx, notify::Config::default()).unwrap();
-
-    watcher.watch(&watch_path, RecursiveMode::NonRecursive)?;
-
-    for res in rx {
-        match res {
-            Ok(_) => {
-                println!("\n\n");
-                print_sprint_balance(2024, iso_week);
-            }
-            Err(e) => println!("{:?}", e),
-        }
-    }
-
-    Ok(())
-}
 
 fn test_sprint(max_results: u32) -> () {
     let url = format!(
