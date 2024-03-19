@@ -2,19 +2,14 @@ use std::fs::read_dir;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-
 use std::fs::read_to_string;
 
 use crate::commons::{Date, Priority, Sprint, Status, TimeEstimate};
 use crate::jira::TimeTrackingJira;
 
-
-
-
 use serde;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_yaml;
-
 
 #[derive(Debug)]
 pub struct TaskFile {
@@ -223,6 +218,7 @@ impl TaskFilter {
         complete_path: PathBuf,
         files: &mut Vec<TaskFile>,
     ) -> Result<(), String> {
+        println!("{:?}", complete_path);
         for entry in read_dir(&complete_path).unwrap() {
             let entry = entry.unwrap();
             let entry_path = entry.path();
@@ -248,7 +244,6 @@ impl TaskFilter {
 
 #[cfg(test)]
 mod test {
-    
 
     #[test]
     fn create_file() {

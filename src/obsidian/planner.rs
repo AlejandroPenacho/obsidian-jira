@@ -1,8 +1,8 @@
-use crate::commons::{Date};
+use crate::commons::Date;
 use std::collections::HashMap;
 
 use time::macros::format_description;
-use time::{Time};
+use time::Time;
 
 use std::fs::read_to_string;
 
@@ -108,6 +108,10 @@ pub fn read_day_plan(date: &Date) -> Option<Vec<PlannedTask>> {
             continue;
         };
         // println!("{:?}", capture);
+
+        if capture.len() != 5 {
+            continue;
+        }
 
         let completed = !(capture.get(1).unwrap().as_str() == " ");
         let start = Time::parse(capture.get(2).unwrap().as_str(), time_format).unwrap();

@@ -202,7 +202,7 @@ pub fn print_sprint_balance(year: i32, iso_week: u8) {
     }
     println!("{}", separator);
     println!(
-        "{:<3$}\t{}\t{}",
+        "{:<3$}   {:<5}   {:<5}",
         "     ",
         "",
         fmt_duration(total_allocated_time, false),
