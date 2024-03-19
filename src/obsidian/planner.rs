@@ -87,7 +87,7 @@ pub fn read_day_plan(date: &Date) -> Option<Vec<PlannedTask>> {
 
     total_path.set_extension("md");
 
-    let time_format = format_description!("[hour]:[minute]");
+    let time_format = format_description!("[hour padding:none]:[minute]");
     let mut output = Vec::new();
     let text = read_to_string(total_path).ok()?;
     /*
@@ -114,7 +114,11 @@ pub fn read_day_plan(date: &Date) -> Option<Vec<PlannedTask>> {
         }
 
         let completed = !(capture.get(1).unwrap().as_str() == " ");
-        let start = Time::parse(capture.get(2).unwrap().as_str(), time_format).unwrap();
+        let start = Time::parse(
+            capture.get(2).unwrap().as_str().trim_start_matches("0"),
+            time_format,
+        )
+        .unwrap();
         let end = Time::parse(capture.get(3).unwrap().as_str(), time_format).unwrap();
         let mut name = capture.get(4).unwrap().as_str().to_owned();
         // This is a mess, do it right later

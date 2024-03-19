@@ -12,7 +12,10 @@ use std::io::Write;
 use notify::{RecursiveMode, Watcher};
 
 fn main() -> notify::Result<()> {
-    let iso_week = time::OffsetDateTime::now_local().unwrap().date().iso_week();
+    let iso_week = config::CONFIG
+        .get_week()
+        .unwrap_or_else(|| time::OffsetDateTime::now_local().unwrap().date().iso_week());
+
     print_sprint_balance(2024, iso_week);
 
     let watch_path: std::path::PathBuf = [
