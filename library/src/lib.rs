@@ -5,8 +5,6 @@ pub mod config;
 pub mod jira;
 pub mod obsidian;
 
-use obsidian::print_sprint_balance;
-
 use std::io::Write;
 
 fn test_sprint(max_results: u32) -> () {

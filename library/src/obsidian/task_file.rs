@@ -218,7 +218,7 @@ impl TaskFilter {
         complete_path: PathBuf,
         files: &mut Vec<TaskFile>,
     ) -> Result<(), String> {
-        println!("{:?}", complete_path);
+        // println!("{:?}", complete_path);
         for entry in read_dir(&complete_path).unwrap() {
             let entry = entry.unwrap();
             let entry_path = entry.path();

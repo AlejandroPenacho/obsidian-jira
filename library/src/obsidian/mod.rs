@@ -1,78 +1,96 @@
 pub mod planner;
 pub mod task_file;
 
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
-struct TaskTimes {
-    in_sprint: bool,
-    remaining_time: time::Duration,
-    uncompleted_time: time::Duration,
-    completed_time: time::Duration,
+pub struct TaskTimeData {
+    pub name: String,
+    pub in_sprint: bool,
+    pub remaining_time: time::Duration,
+    pub uncompleted_time: time::Duration,
+    pub completed_time: time::Duration,
 }
 
-fn get_sprint_balance(year: i32, iso_week: u8) -> HashMap<String, TaskTimes> {
-    let mut sprint_tasks_filter = task_file::TaskFilter::new();
+#[derive(Debug, Clone)]
+pub struct SprintTimeBalance {
+    pub tasks: Vec<TaskTimeData>,
+}
 
-    let sprint = crate::commons::Sprint::from(
-        format!("Y{}W{:0<2}", &year.to_string()[2..], iso_week).as_str(),
-    );
-    let first_day = time::Date::from_iso_week_date(2024, iso_week, time::Weekday::Monday)
-        .unwrap()
-        .into();
-    let last_day = time::Date::from_iso_week_date(2024, iso_week, time::Weekday::Sunday)
-        .unwrap()
-        .into();
+impl SprintTimeBalance {
+    pub fn new(year: i32, iso_week: u8) -> Self {
+        let mut sprint_tasks_filter = task_file::TaskFilter::new();
 
-    let sprint_tasks = sprint_tasks_filter
-        .set_sprints(&[sprint])
-        .set_path(crate::config::CONFIG.get_project_path())
-        .get_tasks();
+        let sprint = crate::commons::Sprint::from(
+            format!("Y{}W{:0<2}", &year.to_string()[2..], iso_week).as_str(),
+        );
+        let first_day = time::Date::from_iso_week_date(2024, iso_week, time::Weekday::Monday)
+            .unwrap()
+            .into();
+        let last_day = time::Date::from_iso_week_date(2024, iso_week, time::Weekday::Sunday)
+            .unwrap()
+            .into();
 
-    let sprint_schedule = planner::TaskSchedule::new(&first_day, &last_day);
+        let sprint_tasks = sprint_tasks_filter
+            .set_sprints(&[sprint])
+            .set_path(crate::config::CONFIG.get_project_path())
+            .get_tasks();
 
-    let mut task_times: HashMap<String, TaskTimes> = HashMap::new();
+        let sprint_schedule = planner::TaskSchedule::new(&first_day, &last_day);
 
-    for task in sprint_tasks {
-        let task_name = task.get_name();
-        let remaining_time = task.get_remaining_time();
-        let uncompleted_time = sprint_schedule
-            .get_task_time_allocation(&task_name)
-            .map(|x| x.get_uncompleted_time())
-            .unwrap_or(time::Duration::ZERO);
+        let mut added_tasks: HashSet<String> = HashSet::new();
 
-        let completed_time = sprint_schedule
-            .get_task_time_allocation(&task_name)
-            .map(|x| x.get_completed_time())
-            .unwrap_or(time::Duration::ZERO);
+        let mut task_times = Vec::new();
 
-        task_times.insert(
-            task_name,
-            TaskTimes {
+        for task in sprint_tasks {
+            let task_name = task.get_name();
+            let remaining_time = task.get_remaining_time();
+            let uncompleted_time = sprint_schedule
+                .get_task_time_allocation(&task_name)
+                .map(|x| x.get_uncompleted_time())
+                .unwrap_or(time::Duration::ZERO);
+
+            let completed_time = sprint_schedule
+                .get_task_time_allocation(&task_name)
+                .map(|x| x.get_completed_time())
+                .unwrap_or(time::Duration::ZERO);
+
+            task_times.push(TaskTimeData {
+                name: task_name.clone(),
                 in_sprint: true,
                 remaining_time,
                 uncompleted_time,
                 completed_time,
-            },
-        );
-    }
-
-    for (task_name, time_allocation) in sprint_schedule.iter_time_allocations() {
-        if task_times.contains_key(task_name) {
-            continue;
+            });
+            added_tasks.insert(task_name);
         }
-        task_times.insert(
-            task_name.clone(),
-            TaskTimes {
+
+        for (task_name, time_allocation) in sprint_schedule.iter_time_allocations() {
+            if added_tasks.contains(task_name) {
+                continue;
+            }
+            task_times.push(TaskTimeData {
+                name: task_name.clone(),
                 in_sprint: false,
                 remaining_time: time::Duration::ZERO,
                 uncompleted_time: time_allocation.get_uncompleted_time(),
                 completed_time: time_allocation.get_completed_time(),
-            },
-        );
-    }
+            });
+        }
 
-    task_times
+        use std::cmp::Ordering::*;
+        task_times.sort_by(|a, b| match (a.in_sprint, b.in_sprint) {
+            (true, true) => match b.remaining_time.cmp(&a.remaining_time) {
+                Equal => b.name.cmp(&a.name),
+                x => return x,
+            },
+            (true, false) => Less,
+            (false, true) => Greater,
+            (false, false) => a.name.partial_cmp(&b.name).unwrap(),
+        });
+
+        Self { tasks: task_times }
+    }
 }
 
 fn fmt_duration(input: time::Duration, signed: bool) -> String {
@@ -95,6 +113,7 @@ fn fmt_duration(input: time::Duration, signed: bool) -> String {
     }
 }
 
+/*
 fn print_task_balance(name: &str, task_times: &TaskTimes, name_size: usize) {
     if task_times.in_sprint {
         println!(
@@ -208,4 +227,15 @@ pub fn print_sprint_balance(year: i32, iso_week: u8) {
         fmt_duration(total_allocated_time, false),
         max_task_name
     );
+}
+*/
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn test_sprint_balance() {
+        let sprint_balance = SprintTimeBalance::new(2024, 10);
+        println!("{:#?}", sprint_balance);
+    }
 }
